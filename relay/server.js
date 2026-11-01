@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 // Nudge relay: receives coding-agent hook payloads over HTTP (from hooks/nudge-hook.sh: Claude Code, Codex,
-// Gemini CLI), normalizes them per agent (relay/adapters/), and pushes the events to the Chrome extension
+// Gemini CLI, Grok Build, Cursor, OpenCode), normalizes them per agent (relay/adapters/), and pushes the events to the Chrome extension
 // over a WebSocket.
 // Zero dependencies. Binds to 127.0.0.1 only.
 
@@ -14,7 +14,7 @@ const pairing = require('./pairing');
 const focus = require('./focus'); // Jump back: which terminal each session runs in, and how to bring it forward
 const stats = require('./stats'); // Waiting stats: ~/.claude-nudge/stats.jsonl
 const secret = require('./secret'); // The per-install secret every client but /health must send
-const { adapterFor, createContext, sessionKey, incompleteDecision: incomplete, DEFAULT_AGENT } = require('./adapters');
+const { adapterFor, hostAgent, createContext, sessionKey, incompleteDecision: incomplete, DEFAULT_AGENT } = require('./adapters');
 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.CLAUDE_NUDGE_PORT || 47831);
@@ -454,9 +454,13 @@ const server = http.createServer((req, res) => {
       let hook;
       try { hook = JSON.parse(body); } catch (_) { return json(400, { error: 'invalid json' }); }
       if (!hook || typeof hook !== 'object' || Array.isArray(hook)) return json(400, { error: 'expected a JSON object' });
-      // ?agent=codex|gemini comes from `nudge-hook.sh <agent>`; Claude Code's hooks send none.
+      // ?agent=codex|gemini|grok|cursor|opencode comes from `nudge-hook.sh <agent>`; Claude Code's hooks send none.
       const agent = url.searchParams.get('agent') || DEFAULT_AGENT;
       if (!adapterFor(agent)) { log(`ignored hook from unknown agent "${agent}"`); return json(400, { error: 'unknown agent' }); }
+      // Grok Build and Cursor also run the hooks in ~/.claude/settings.json: drop those copies, so a Grok or Cursor turn
+      // never shows up as "Claude is done". The agent's own hooks (?agent=grok, ?agent=cursor) report it.
+      const host = hostAgent(hook);
+      if (host && host !== agent) { log(`ignored ${agent} hook run by ${host}`); return json(200, { ok: true, emitted: false, duplicate: false, canDecide: false }); }
       // Remember the terminal before normalizing, so the event already names it.
       if (hook.session_id) focus.remember(sessionKey(agent, hook.session_id), focus.fromHook(hook, req.headers));
       const event = normalize(hook, agent);

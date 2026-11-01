@@ -33,7 +33,7 @@ npx nudge-mascot setup
 ```
 
 That copies the relay and hooks into `~/.claude-nudge/`, adds the hooks to `~/.claude/settings.json`
-(backup saved next to it; Codex and Gemini CLI too when found, see [Other agents](#other-agents)), including
+(backup saved next to it; Codex, Gemini CLI, Grok Build, Cursor and OpenCode too when found, see [Other agents](#other-agents)), including
 the two approval hooks that let you [reply from the bubble](#reply-from-the-bubble), starts the relay and keeps
 it running at login (launchd on macOS, systemd user service on Linux), and prints where to load the extension
 and a **connection code** (see [Privacy](#privacy)). Running it again is safe: hooks already present are left
@@ -57,22 +57,27 @@ Requires Node 18+ and Chrome 116+.
 
 ## Other agents
 
-Nudge also waits on OpenAI's Codex CLI and Google's Gemini CLI. `setup` with no flags installs hooks for every
-agent it finds (`~/.claude`; `~/.codex` or a `codex` binary; `~/.gemini/settings.json` or a `gemini` binary, since
-Antigravity and Gemini Code Assist create `~/.gemini` too) and prints what it did. Pick agents explicitly with
-`--agent`:
+Nudge also waits on OpenAI's Codex CLI, Google's Gemini CLI, xAI's Grok Build, Cursor and OpenCode. `setup` with no
+flags installs hooks for every agent it finds (`~/.claude`; `~/.codex` or a `codex` binary; `~/.gemini/settings.json`
+or a `gemini` binary, since Antigravity and Gemini Code Assist create `~/.gemini` too; `~/.grok/config.toml` or a
+`grok` binary, since the community grok-cli uses `~/.grok` too; `~/.cursor` or a `cursor-agent` / `cursor` binary;
+`~/.config/opencode` or an `opencode` binary) and prints what it did. Pick agents explicitly with `--agent`:
 
 ```sh
 npx nudge-mascot setup --agent codex          # hooks in ~/.codex/hooks.json
 npx nudge-mascot setup --agent gemini         # hooks in ~/.gemini/settings.json
+npx nudge-mascot setup --agent grok           # hooks in their own file, ~/.grok/hooks/nudge.json
+npx nudge-mascot setup --agent cursor         # hooks in ~/.cursor/hooks.json
+npx nudge-mascot setup --agent opencode       # a plugin, ~/.config/opencode/plugins/nudge.js
 npx nudge-mascot setup --agent claude-code,codex
 npx nudge-mascot test permission --agent codex  # a fake Codex nudge
 npx nudge-mascot status                       # hook status per agent
 npx nudge-mascot uninstall                    # removes the hooks from every agent's config
 ```
 
-Every agent runs the same `~/.claude-nudge/nudge-hook.sh`; Codex and Gemini pass their name (`nudge-hook.sh codex`),
-which the hook sends as `POST /hook?agent=codex`, and the relay's adapter for that agent (`relay/adapters/`) turns
+Every agent runs the same `~/.claude-nudge/nudge-hook.sh`; the others pass their name (`nudge-hook.sh codex`),
+which the hook sends as `POST /hook?agent=codex`. OpenCode has no shell hooks, so its plugin pipes each relevant
+event into `nudge-hook.sh opencode` itself. In every case the relay's adapter for that agent (`relay/adapters/`) turns
 the payload into the same event. The first write backs up the config next to it (`.bak-claude-nudge`; later runs
 keep that backup), merges, and is safe to re-run. A config that isn't plain JSON (comments, say) is left alone with a warning. Bubbles from other
 agents name the agent ("Codex is done", "Gemini needs permission") and show an agent badge next to the project.
@@ -82,9 +87,17 @@ agents name the agent ("Codex is done", "Gemini needs permission") and show an a
 | Claude Code | `Stop`, `Notification`, `PreToolUse` (AskUserQuestion), `PostToolUse`, `UserPromptSubmit`, plus the approval hooks (`PermissionRequest`, `PreToolUse` on AskUserQuestion) | question, permission, done, idle | Verified in daily use. Allow / Deny and answers from the bubble (approval hooks installed by `setup`) or the phone (`npx nudge-mascot pair`). |
 | Codex CLI | `PermissionRequest`, `PostToolUse`, `UserPromptSubmit`, `Stop`, `PreToolUse` (request_user_input) | permission, done (question unverified) | **Unverified on a live Codex.** Built from the official [hooks reference](https://developers.openai.com/codex/hooks); Codex wasn't installed where this was written. The `request_user_input` question payload is a guess. Codex only runs hooks you have trusted: type `/hooks` in Codex after setup. No idle nudges (Codex has no such event). |
 | Gemini CLI | `Notification` (ToolPermission), `AfterAgent`, `BeforeAgent`, `AfterTool` | permission, done | **Unverified on a live Gemini CLI.** Built from the [hooks reference](https://geminicli.com/docs/hooks/reference/) and the v0.66.0 source (the permission `details` shape). Upstream bug [#27712](https://github.com/google-gemini/gemini-cli/issues/27712): `AfterAgent` does not fire on some versions (reported for 0.45 to 0.55.1), so "done" may be missing there. No question or idle nudges. |
+| Grok Build | `Notification` (permission_prompt, elicitation_dialog, idle_prompt), `PreToolUse` (ask_user_question), `PostToolUse`, `UserPromptSubmit`, `Stop`, `StopFailure`, `StopCancelled` | permission, question, done, idle | **Unverified on a live Grok Build.** Built from the [xai-org/grok-build](https://github.com/xai-org/grok-build) source at 1.0.45 (hooks guide and `xai-grok-hooks/src/event.rs`). No `PermissionRequest` event, so permissions are answered in the terminal. The `ask_user_question` choices are a guess (without them the question still shows, without choices). |
+| Cursor | `stop`, `afterAgentResponse`, `beforeSubmitPrompt` | done | **Unverified on a live Cursor.** Built from the hook runner in `@cursor/sdk` 1.2.0 ([docs](https://cursor.com/docs/hooks)). Cursor has no hook for its approval prompts or questions (the `before*` hooks run before it decides to ask), so there are no permission or question nudges. `afterAgentResponse` reportedly doesn't fire in the CLI; "done" then has the generic message. |
+| OpenCode | plugin on the event bus: `permission.asked` / `.replied`, `form.created` (question tool) / `.replied` / `.cancelled`, `session.inbox.enqueued`, `session.execution.*` | permission, question, done | **Unverified on a live OpenCode.** Built from the OpenCode 2 source (v2.2.5); OpenCode 1 plugins are a different API and aren't supported. A subagent's session finishing may show its own "done". Restart OpenCode after setup. |
+
+Grok Build and Cursor also run the hooks in `~/.claude/settings.json`, so Nudge's Claude Code hook fires inside them
+too. The relay recognises those payloads (Grok's carry `hookEventName` / `workspaceRoot`, Cursor's `cursor_version`)
+and drops them, and the approval hook returns at once for them, so a Grok or Cursor turn never shows as "Claude is
+done" or waits on the bubble; their own hooks report it.
 
 Answering from the bubble or the phone (Allow / Deny, picking an answer) stays Claude Code only for now; for
-Codex and Gemini the bubble shows the request and you answer in the terminal. Jump to terminal and the waiting
+the other agents the bubble shows the request and you answer in the terminal. Jump to terminal and the waiting
 stats work for every agent, since they all run the same hook. Codex's `PermissionRequest` hook can decide too (it prints
 `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}`, the same shape as
 Claude Code), so `nudge-approve.js` could serve it, but it would need: an `?agent=codex` post, a `tool_use_id`
@@ -225,7 +238,9 @@ Full policy: [privacy.html](https://nudge-mascot.vercel.app/privacy).
 | `bin/nudge.js` | The CLI: `setup`, `start`, `status`, `test`, `uninstall`. |
 | `hooks/nudge-hook.sh` | The hook every agent runs. Forwards the hook's JSON to the relay with curl (optional first argument: the agent, sent as `?agent=`), plus the terminal it runs in as `X-Nudge-*` headers. Fire-and-forget, 2s timeout, never blocks the agent. |
 | `relay/server.js` | Zero-dependency Node relay with its own minimal WebSocket server. Picks the agent's adapter (`?agent=` on `/hook` and `/test`); holds decisions from the bubble or the phone for the approval hook. Endpoints for the extension: `/decision`, `/focus`, `/dismissed`, `/stats`, `/test`, `/pair/*`. |
-| `relay/adapters/` | One adapter per agent (`claude-code.js`, `codex.js`, `gemini.js`) mapping its hook payloads to the shared event; `index.js` holds the shared state and helpers; `test.js` is `npm test`. |
+| `hooks/nudge-opencode.js` | The OpenCode plugin `setup --agent opencode` installs: forwards OpenCode's bus events to `nudge-hook.sh opencode`. |
+| `relay/adapters/` | One adapter per agent (`claude-code.js`, `codex.js`, `gemini.js`, `grok.js`, `cursor.js`, `opencode.js`) mapping its hook payloads to the shared event; `index.js` holds the shared state and helpers; `test.js` is part of `npm test`. |
+| `scripts/install-test.js` | The rest of `npm test`: installs and removes each agent's hooks under a throwaway HOME, and runs the OpenCode plugin against a fake event bus. |
 | `relay/focus.js` | Jump back: the terminal each session runs in, and the `osascript` / `open` / `wmctrl` / `xdotool` call that brings it forward. |
 | `relay/stats.js` | Waiting stats: opens and closes waits, appends `stats.jsonl`, sums a week for `GET /stats`. |
 | `relay/pairing.js` | Phone pairing (`cloud.json`) and the approval hooks in `settings.json`, shared by the relay and the CLI. |

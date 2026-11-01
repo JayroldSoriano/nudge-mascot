@@ -1,6 +1,6 @@
 #!/bin/sh
 # Nudge hook: forwards the coding agent's hook payload (stdin JSON) to the local relay.
-# Optional first argument: the agent (codex, gemini), sent as ?agent=... so the relay picks its adapter.
+# Optional first argument: the agent (codex, gemini, grok, cursor, opencode), sent as ?agent=... so the relay picks its adapter.
 # No argument means Claude Code. Fire-and-forget: 2s timeout, never fails, so the agent is never blocked
 # when the relay is down.
 # The X-Nudge-* headers name the terminal this agent session runs in (read from the environment the hook

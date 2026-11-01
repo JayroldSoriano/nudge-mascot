@@ -16,7 +16,7 @@
 const path = require('path');
 
 const adapters = {};
-for (const a of [require('./claude-code'), require('./codex'), require('./gemini')]) adapters[a.name] = a;
+for (const a of [require('./claude-code'), require('./codex'), require('./gemini'), require('./grok'), require('./cursor'), require('./opencode')]) adapters[a.name] = a;
 const DEFAULT_AGENT = 'claude-code';
 
 function clip(text, max) {
@@ -47,6 +47,7 @@ function createContext({ questionHookInstalled = () => false } = {}) {
   const pending = new Map(); // session key -> kind of the nudge the agent is blocked on (question/permission)
   const lastPermission = new Map(); // session key -> ts of the last PermissionRequest event (dedupes the Notification that follows it)
   const lastDecided = new Map(); // session key -> ts the bubble or the phone last decided a request (the relay sets it)
+  const lastText = new Map(); // session key -> the agent's last reply, for agents whose "done" event lacks it (Cursor)
   // Both nudge-hook.sh and nudge-approve.js post the same PreToolUse payload; emit it once.
   const seenToolUse = new Map(); // `${agent}:${tool_use_id}` -> ts
   function isDuplicate(agent, toolUseId) {
@@ -70,7 +71,7 @@ function createContext({ questionHookInstalled = () => false } = {}) {
     };
   }
   const key = (b) => sessionKey(b.agent, b.session_id);
-  return { clip, toolSummary, pending, lastPermission, lastDecided, seenToolUse, isDuplicate, base, key, questionHookInstalled };
+  return { clip, toolSummary, pending, lastPermission, lastDecided, lastText, seenToolUse, isDuplicate, base, key, questionHookInstalled };
 }
 
 // Why decision `d` (from the bubble or the phone) can't answer the request event `ev`, or null when it can: a
@@ -91,9 +92,21 @@ function incompleteDecision(ev, d) {
   return missing.length ? `answer every question (missing: ${missing.map((q, i) => q.header || q.question || `#${i + 1}`).join(', ')})` : null;
 }
 
+// The agent that really ran a hook, when its payload gives it away: Grok Build and Cursor also run the hooks they find
+// in ~/.claude/settings.json (and Grok those in ~/.cursor/hooks.json), so Nudge's Claude Code hook fires inside them
+// too. Grok's payloads carry hookEventName / workspaceRoot, Cursor's cursor_version; Claude Code, Codex, Gemini CLI
+// and the OpenCode plugin send none of these. null: no telltale. The relay drops a hook whose host is another agent
+// than its ?agent= (that agent's own hooks report it), and nudge-approve.js does not wait on one.
+function hostAgent(hook) {
+  if (!hook || typeof hook !== 'object') return null;
+  if ('hookEventName' in hook || 'workspaceRoot' in hook) return 'grok';
+  if ('cursor_version' in hook) return 'cursor';
+  return null;
+}
+
 // Resolves ?agent= to an adapter: missing or empty means Claude Code; an unknown name returns null.
 function adapterFor(agent) {
   return adapters[agent || DEFAULT_AGENT] || null;
 }
 
-module.exports = { adapters, adapterFor, createContext, sessionKey, incompleteDecision, clip, toolSummary, DEFAULT_AGENT };
+module.exports = { adapters, adapterFor, hostAgent, createContext, sessionKey, incompleteDecision, clip, toolSummary, DEFAULT_AGENT };

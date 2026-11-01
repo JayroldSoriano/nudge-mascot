@@ -53,6 +53,9 @@ function answersFor(questions, d) {
   let hook;
   try { hook = JSON.parse(raw); } catch (_) { return; }
   if (!hook.session_id) return;
+  // Grok Build and Cursor also run the hooks in ~/.claude/settings.json; this hook only answers Claude Code, so never
+  // hold them up (same telltales as hostAgent in relay/adapters/index.js).
+  if ('hookEventName' in hook || 'workspaceRoot' in hook || 'cursor_version' in hook) return;
   // Claude Code 2.1.280 sends PermissionRequest without tool_use_id. Make up a fresh one for this invocation and send
   // it to the relay: it only ties this hook's POST /hook to its own GET /decision polls (and the phone's decision to
   // them). Never derive it from the request's content: the same command asked twice must not reuse the first answer.

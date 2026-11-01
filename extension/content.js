@@ -234,7 +234,7 @@
   let pillTimer = null;
 
   // Events from other agents carry `agent`; Claude Code's may not (older relays), so absent means Claude.
-  const AGENT_NAMES = { codex: 'Codex', gemini: 'Gemini' };
+  const AGENT_NAMES = { codex: 'Codex', gemini: 'Gemini', grok: 'Grok', cursor: 'Cursor', opencode: 'OpenCode' };
   const who = () => (current && AGENT_NAMES[current.agent]) || 'Claude';
   const HINTS = {
     done: () => 'Esc to dismiss',

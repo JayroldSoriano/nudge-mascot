@@ -3,7 +3,7 @@
 // Feeds sample hook payloads for each agent through its adapter and checks the events. No framework:
 //   node relay/adapters/test.js   (or npm test)
 const assert = require('assert');
-const { adapters, adapterFor, createContext, sessionKey, incompleteDecision } = require('.');
+const { adapters, adapterFor, hostAgent, createContext, sessionKey, incompleteDecision } = require('.');
 
 let passed = 0;
 const failures = [];
@@ -42,8 +42,16 @@ function expectAgentKind(e, agent, kind) {
 console.log('registry');
 test('no ?agent= means Claude Code', () => assert.strictEqual(adapterFor(undefined).name, 'claude-code'));
 test('empty ?agent= means Claude Code', () => assert.strictEqual(adapterFor('').name, 'claude-code'));
-test('codex and gemini resolve', () => { assert.strictEqual(adapterFor('codex').name, 'codex'); assert.strictEqual(adapterFor('gemini').name, 'gemini'); });
-test('unknown agent is null', () => assert.strictEqual(adapterFor('cursor'), null));
+test('codex, gemini, grok, cursor and opencode resolve', () => {
+  for (const name of ['codex', 'gemini', 'grok', 'cursor', 'opencode']) assert.strictEqual(adapterFor(name).name, name);
+});
+test('unknown agent is null', () => assert.strictEqual(adapterFor('windsurf'), null));
+test('every adapter has a name, a label, normalize and samples', () => {
+  for (const [name, a] of Object.entries(adapters)) {
+    assert.strictEqual(a.name, name);
+    assert.ok(a.label && typeof a.normalize === 'function' && typeof a.samples === 'function', name);
+  }
+});
 test('ids increase across events', () => {
   const [a, b] = run('claude-code', { hook_event_name: 'Stop' }, { hook_event_name: 'Stop' });
   assert.ok(b.id > a.id);
@@ -242,6 +250,188 @@ test('other events are ignored', () => {
   assert.deepStrictEqual(out, [null, null, null]);
 });
 
+console.log('grok');
+// Grok sends both spellings of the common fields; the event-specific ones are camelCase (see grok.js).
+const grok = (event, extra) => ({ hook_event_name: event, hookEventName: event.toLowerCase(), sessionId: 's1', workspaceRoot: CWD, timestamp: '2026-10-31T10:00:00Z', ...extra });
+test('Notification permission_prompt -> "Grok needs permission", not approvable', () => {
+  const [e] = run('grok', grok('Notification', { notificationType: 'permission_prompt', title: 'Permission required', message: 'Run: npm publish' }));
+  expectEvent(e, 'grok', 'permission', 'Grok needs permission');
+  assert.strictEqual(e.message, 'Run: npm publish');
+  assert.strictEqual(e.approvable, false);
+});
+test('session and project come from sessionId / workspaceRoot when the snake_case copies are missing', () => {
+  const ctx = createContext();
+  const e = adapters.grok.normalize(grok('Notification', { notificationType: 'permission_prompt', message: 'x' }), ctx);
+  assert.strictEqual(e.session_id, 's1');
+  assert.strictEqual(e.cwd, CWD);
+  assert.strictEqual(e.project, 'shop-api');
+});
+test('Stop end_turn -> "Grok is done" with lastAssistantMessage; session-closing Stops are ignored', () => {
+  const [d, f, closed] = run('grok',
+    grok('Stop', { reason: 'end_turn', stopHookActive: false, lastAssistantMessage: 'Shipped it.' }),
+    grok('Stop', { reason: 'end_turn' }),
+    grok('Stop', { reason: 'channel_closed', lastAssistantMessage: 'bye' }));
+  expectEvent(d, 'grok', 'done', 'Grok is done');
+  assert.strictEqual(d.message, 'Shipped it.');
+  assert.strictEqual(f.message, 'Finished working. Come take a look.');
+  assert.strictEqual(closed, null);
+});
+test('StopFailure -> done "Grok stopped" with the error', () => {
+  const [e] = run('grok', grok('StopFailure', { error: 'rate limited' }));
+  expectEvent(e, 'grok', 'done', 'Grok stopped');
+  assert.strictEqual(e.message, 'rate limited');
+});
+test('UserPromptSubmit and StopCancelled resolve; PostToolUse only while something is pending', () => {
+  const [none, , res, prompt, cancelled] = run('grok',
+    grok('PostToolUse', { tool_name: 'run_terminal_command', tool_use_id: 't0' }),
+    grok('Notification', { notificationType: 'permission_prompt', message: 'x' }),
+    grok('PostToolUse', { tool_name: 'run_terminal_command', tool_use_id: 't1' }),
+    grok('UserPromptSubmit', { prompt: 'go' }),
+    grok('StopCancelled', { reason: 'permission_rejected' }));
+  assert.strictEqual(none, null);
+  expectEvent(res, 'grok', 'resolved', 'Resolved');
+  expectEvent(prompt, 'grok', 'resolved');
+  expectEvent(cancelled, 'grok', 'resolved');
+});
+test('PreToolUse ask_user_question -> question with choices; the elicitation_dialog after it is not a second nudge', () => {
+  const [q, n] = run('grok',
+    grok('PreToolUse', { tool_name: 'ask_user_question', tool_use_id: 'g1', tool_input: { questions: [{ header: 'DB', question: 'Which database?', options: [{ label: 'Postgres' }, { label: 'SQLite' }] }] } }),
+    grok('Notification', { notificationType: 'elicitation_dialog', message: 'User question requested' }));
+  expectEvent(q, 'grok', 'question', 'Grok has a question');
+  assert.deepStrictEqual(q.options, [{ header: 'DB', question: 'Which database?', multiSelect: false, choices: ['Postgres', 'SQLite'] }]);
+  assert.strictEqual(q.approvable, false);
+  assert.strictEqual(n, null);
+});
+test('elicitation_dialog alone -> question; idle_prompt -> idle; other notifications are ignored', () => {
+  const [q, i, t] = run('grok',
+    grok('Notification', { notificationType: 'elicitation_dialog', message: 'User question requested' }),
+    grok('Notification', { notificationType: 'idle_prompt', message: 'Waiting for input' }),
+    grok('Notification', { notificationType: 'task_complete', message: 'Background task finished' }));
+  expectEvent(q, 'grok', 'question', 'Grok has a question');
+  assert.strictEqual(q.message, 'User question requested');
+  expectEvent(i, 'grok', 'idle', 'Grok is waiting');
+  assert.strictEqual(t, null);
+});
+test('subagent events and other tools are ignored', () => {
+  const out = run('grok',
+    grok('Stop', { reason: 'end_turn', subagentType: 'explore', lastAssistantMessage: 'sub' }),
+    grok('PreToolUse', { tool_name: 'run_terminal_command', tool_input: { command: 'ls' } }),
+    grok('SessionStart', {}));
+  assert.deepStrictEqual(out, [null, null, null]);
+});
+
+console.log('cursor');
+const cursor = (event, extra) => ({ conversation_id: 's1', generation_id: 'g1', hook_event_name: event, model: 'auto', cursor_version: '2.6.0', workspace_roots: [CWD], user_email: null, transcript_path: null, ...extra });
+const runCursor = (...hooks) => { const ctx = createContext(); return hooks.map((h) => adapters.cursor.normalize(h, ctx)); };
+test('stop completed -> "Cursor is done" with the text of the afterAgentResponse before it', () => {
+  const [r, d] = runCursor(cursor('afterAgentResponse', { text: 'Renamed the module and fixed imports.' }), cursor('stop', { status: 'completed', loop_count: 0 }));
+  assert.strictEqual(r, null);
+  expectEvent(d, 'cursor', 'done', 'Cursor is done');
+  assert.strictEqual(d.message, 'Renamed the module and fixed imports.');
+  assert.strictEqual(d.cwd, CWD);
+});
+test('session_id falls back to conversation_id; an explicit session_id wins', () => {
+  const [a, b] = runCursor(cursor('stop', { status: 'completed' }), cursor('stop', { status: 'completed', session_id: 'sess-9' }));
+  assert.strictEqual(a.session_id, 's1');
+  assert.strictEqual(b.session_id, 'sess-9');
+});
+test('stop without a response uses the fallback; the text does not leak into the next turn', () => {
+  const [, d1, d2] = runCursor(cursor('afterAgentResponse', { text: 'first' }), cursor('stop', { status: 'completed' }), cursor('stop', { status: 'completed' }));
+  assert.strictEqual(d1.message, 'first');
+  assert.strictEqual(d2.message, 'Finished working. Come take a look.');
+});
+test('stop aborted -> resolved; stop error -> done "Cursor stopped"', () => {
+  const [a, e] = runCursor(cursor('stop', { status: 'aborted' }), cursor('stop', { status: 'error' }));
+  expectEvent(a, 'cursor', 'resolved', 'Resolved');
+  expectEvent(e, 'cursor', 'done', 'Cursor stopped');
+});
+test('beforeSubmitPrompt -> resolved', () => {
+  expectEvent(runCursor(cursor('beforeSubmitPrompt', { prompt: 'next', attachments: [] }))[0], 'cursor', 'resolved', 'Resolved');
+});
+test('other events are ignored', () => {
+  const out = runCursor(
+    cursor('beforeShellExecution', { command: 'npm test', cwd: CWD, tool_use_id: 'x' }),
+    cursor('preToolUse', { tool_name: 'Shell', tool_input: { command: 'ls' }, tool_use_id: 'y', cwd: CWD }),
+    cursor('subagentStop', { status: 'completed' }),
+    cursor('Stop', {}));
+  assert.deepStrictEqual(out, [null, null, null, null]);
+});
+
+console.log('opencode');
+// What hooks/nudge-opencode.js pipes into nudge-hook.sh: the bus event's type and data, plus session, cwd and text.
+const oc = (type, data, extra) => ({ hook_event_name: type, session_id: 's1', cwd: CWD, data: { sessionID: 's1', ...data }, ...extra });
+test('permission.asked -> "OpenCode needs permission" with the action and resources', () => {
+  const [e, m] = run('opencode',
+    oc('permission.asked', { id: 'per_1', action: 'bash', resources: ['git push', 'git push --tags'] }),
+    oc('permission.asked', { id: 'per_2', action: 'edit', resources: ['src/a.ts'], message: 'Edit src/a.ts?' }));
+  expectEvent(e, 'opencode', 'permission', 'OpenCode needs permission');
+  assert.strictEqual(e.message, 'bash: git push, git push --tags');
+  assert.strictEqual(e.tool_name, 'bash');
+  assert.strictEqual(e.approvable, false);
+  assert.strictEqual(m.message, 'Edit src/a.ts?');
+});
+test('permission.replied resolves', () => {
+  const [, r] = run('opencode', oc('permission.asked', { id: 'per_1', action: 'bash', resources: [] }), oc('permission.replied', { requestID: 'per_1', reply: 'once' }));
+  expectEvent(r, 'opencode', 'resolved', 'Resolved');
+});
+test('form.created for the question tool -> question; other forms are ignored; form.replied resolves', () => {
+  const form = (kind) => ({ form: { id: 'frm_1', sessionID: 's1', title: 'Questions', metadata: { kind }, fields: [{ key: 'q0', label: 'Touch the tests too?' }] } });
+  const [q, other, r] = run('opencode', oc('form.created', form('question')), oc('form.created', form('mcp')), oc('form.replied', { id: 'frm_1', answer: { q0: 'Yes' } }));
+  expectEvent(q, 'opencode', 'question', 'OpenCode has a question');
+  assert.strictEqual(q.message, 'Touch the tests too?');
+  assert.strictEqual(other, null);
+  expectEvent(r, 'opencode', 'resolved');
+});
+test('the session id can come from data.form.sessionID alone', () => {
+  const ctx = createContext();
+  const e = adapters.opencode.normalize({ hook_event_name: 'form.created', cwd: CWD, data: { form: { sessionID: 's1', metadata: { kind: 'question' }, fields: [] } } }, ctx);
+  assert.strictEqual(e.session_id, 's1');
+  assert.strictEqual(e.message, 'OpenCode is waiting for your answer.');
+});
+test('session.execution.succeeded -> "OpenCode is done"; failed -> "OpenCode stopped"', () => {
+  const [d, f, e] = run('opencode',
+    oc('session.execution.succeeded', {}, { last_assistant_message: 'Migrated the config.' }),
+    oc('session.execution.succeeded', {}),
+    oc('session.execution.failed', { error: { message: 'provider error' } }));
+  expectEvent(d, 'opencode', 'done', 'OpenCode is done');
+  assert.strictEqual(d.message, 'Migrated the config.');
+  assert.strictEqual(f.message, 'Finished working. Come take a look.');
+  expectEvent(e, 'opencode', 'done', 'OpenCode stopped');
+  assert.strictEqual(e.message, 'provider error');
+});
+test('a user prompt or a user interrupt resolves; other inbox items and interrupts do not', () => {
+  const out = run('opencode',
+    oc('session.inbox.enqueued', { inboxID: 'i1', item: { type: 'user' } }),
+    oc('session.inbox.enqueued', { inboxID: 'i2', item: { type: 'synthetic' } }),
+    oc('session.execution.interrupted', { reason: 'user' }),
+    oc('session.execution.interrupted', { reason: 'shutdown' }),
+    oc('session.text.ended', { text: 'hi' }));
+  expectEvent(out[0], 'opencode', 'resolved');
+  assert.strictEqual(out[1], null);
+  expectEvent(out[2], 'opencode', 'resolved');
+  assert.deepStrictEqual(out.slice(3), [null, null]);
+});
+
+console.log('hooks that another agent ran (Grok and Cursor also run ~/.claude/settings.json)');
+test('hostAgent names Grok and Cursor payloads and nothing else', () => {
+  assert.strictEqual(hostAgent(grok('Stop', { reason: 'end_turn' })), 'grok');
+  assert.strictEqual(hostAgent({ hook_event_name: 'Stop', session_id: 's', workspaceRoot: CWD }), 'grok');
+  assert.strictEqual(hostAgent(cursor('stop', { status: 'completed' })), 'cursor');
+  assert.strictEqual(hostAgent({ hook_event_name: 'Stop', session_id: 's', cwd: CWD, last_assistant_message: 'x' }), null); // Claude Code
+  assert.strictEqual(hostAgent({ hook_event_name: 'PermissionRequest', turn_id: 't', tool_name: 'Bash' }), null); // Codex
+  assert.strictEqual(hostAgent({ hook_event_name: 'AfterAgent', timestamp: 'x' }), null); // Gemini CLI
+  assert.strictEqual(hostAgent(oc('session.execution.succeeded', {})), null); // OpenCode plugin
+  assert.strictEqual(hostAgent(null), null);
+});
+test("every sample's host is its own agent (or none), so the relay never drops a test nudge", () => {
+  for (const [name, a] of Object.entries(adapters)) {
+    for (const [kind, payload] of Object.entries(a.samples({ cwd: CWD, session_id: 'test' }))) {
+      const host = hostAgent(payload);
+      assert.ok(host === null || host === name, `${name} ${kind} sample looks like ${host}`);
+    }
+  }
+});
+
 console.log('test samples (/test?agent=...)');
 for (const [name, adapter] of Object.entries(adapters)) {
   test(`${name}: every sample normalizes to its kind`, () => {
@@ -255,6 +445,26 @@ for (const [name, adapter] of Object.entries(adapters)) {
     }
   });
 }
+
+console.log('one event shape for every agent');
+test('every event from every sample has exactly the shared fields, and only known optional ones', () => {
+  const OPTIONAL = ['options', 'tool_name', 'tool_use_id', 'approvable'];
+  const KINDS = ['question', 'permission', 'done', 'idle', 'resolved'];
+  for (const [name, a] of Object.entries(adapters)) {
+    const ctx = createContext({ questionHookInstalled: () => true });
+    for (const [kind, payload] of Object.entries(a.samples({ cwd: CWD, session_id: 'test' }))) {
+      const e = a.normalize(payload, ctx);
+      for (const k of SHAPE) assert.ok(k in e, `${name} ${kind}: lacks "${k}"`);
+      for (const k of Object.keys(e)) assert.ok(SHAPE.includes(k) || OPTIONAL.includes(k), `${name} ${kind}: unexpected field "${k}"`);
+      assert.ok(KINDS.includes(e.kind), `${name} ${kind}: kind ${e.kind}`);
+      assert.strictEqual(typeof e.id, 'number');
+      assert.strictEqual(typeof e.message, 'string');
+      assert.strictEqual(e.session_id, 'test', `${name} ${kind}: session_id`);
+      assert.strictEqual(e.project, 'shop-api', `${name} ${kind}: project`);
+      if (e.options) for (const o of e.options) assert.deepStrictEqual(Object.keys(o), ['header', 'question', 'multiSelect', 'choices']);
+    }
+  }
+});
 
 console.log('shared context across agents (the relay keeps one ctx for all of them)');
 test('a Claude PostToolUse does not resolve a Codex request with the same session_id', () => {
@@ -277,6 +487,14 @@ test("one agent's PermissionRequest does not dedupe another agent's permission_p
   adapters.codex.normalize({ session_id: 'Z', cwd: CWD, hook_event_name: 'PermissionRequest', tool_name: 'Bash', tool_input: { command: 'ls' } }, ctx);
   const n = adapters['claude-code'].normalize({ session_id: 'Z', cwd: CWD, hook_event_name: 'Notification', notification_type: 'permission_prompt' }, ctx);
   expectAgentKind(n, 'claude-code', 'permission');
+});
+test('a Grok PostToolUse does not resolve a Cursor or OpenCode nudge with the same session_id', () => {
+  const ctx = createContext();
+  ctx.pending.set(sessionKey('cursor', 'V'), 'permission');
+  expectAgentKind(adapters.opencode.normalize({ hook_event_name: 'permission.asked', session_id: 'V', cwd: CWD, data: { action: 'bash', resources: [] } }, ctx), 'opencode', 'permission');
+  assert.strictEqual(adapters.grok.normalize({ hook_event_name: 'PostToolUse', hookEventName: 'post_tool_use', session_id: 'V', cwd: CWD, tool_name: 'x' }, ctx), null);
+  assert.strictEqual(ctx.pending.get(sessionKey('opencode', 'V')), 'permission');
+  assert.strictEqual(ctx.pending.get(sessionKey('cursor', 'V')), 'permission');
 });
 test('the same tool_use_id from two agents is not a duplicate', () => {
   const ctx = createContext({ questionHookInstalled: () => true });
