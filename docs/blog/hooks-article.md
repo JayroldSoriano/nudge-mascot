@@ -203,7 +203,7 @@ npx nudge-mascot setup
 npx nudge-mascot test approve   # a fake permission you can Allow from the bubble
 ```
 
-Restart running Claude Code sessions after setup, since hooks are read at startup. The same `nudge-hook.sh` also serves Codex CLI and Gemini CLI through per-agent adapters in the relay, which is another argument for keeping the hook dumb.
+Restart running Claude Code sessions after setup, since hooks are read at startup. The same `nudge-hook.sh` also serves Codex CLI, Gemini CLI, Grok Build, Cursor and OpenCode (through a small plugin) via per-agent adapters in the relay, which is another argument for keeping the hook dumb.
 
 What I took away from this: hooks are a tiny API with a lot of reach. Forward events from a script that can't fail, keep the logic in a process you can test, and when a hook blocks, make sure it can always step aside. The code is MIT on [GitHub](https://github.com/JayroldSoriano/nudge-mascot). Issues and mascot ideas welcome.
 
