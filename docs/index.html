@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Nudge</title>
-<meta name="description" content="A pixel mascot waves at you in Chrome when Claude Code has a question, needs permission, or is done. Ignore it and it gets annoyed. Free, open source, local only.">
+<meta name="description" content="A pixel mascot waves at you in Chrome when your coding agent (Claude Code, Codex, Gemini CLI, Grok Build, Cursor or OpenCode) has a question, needs permission, or is done. Ignore it and it gets annoyed. Free, open source, local only.">
 <meta property="og:title" content="Nudge">
-<meta property="og:description" content="Claude is waiting. Nudge makes sure you know.">
+<meta property="og:description" content="Your coding agent is waiting. Nudge makes sure you know. Works with Claude Code, Codex, Gemini CLI, Grok Build, Cursor and OpenCode.">
 <meta property="og:image" content="https://nudge-mascot.vercel.app/assets/og.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="assets/icon128.png">
@@ -108,6 +108,43 @@
   .flow { font-family: var(--mono); font-size: 13.5px; color: var(--muted); margin: 22px 0 0; overflow-x: auto; white-space: nowrap; padding-bottom: 4px; }
   .flow b { color: var(--ink); font-weight: 500; }
 
+  /* Agents: a tab per agent, each with its own install command and what it can show. */
+  .works { display: flex; flex-wrap: wrap; gap: 8px; margin: 22px 0 0; padding: 0; list-style: none; font-size: 13.5px; }
+  .works li { border: 1.5px solid var(--line); border-radius: 999px; padding: 3px 11px; color: var(--muted); }
+  .works li b { color: var(--ink); font-weight: 600; }
+  .works a { text-decoration: none; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
+  .tab { border: 2px solid var(--line); border-radius: 10px; padding: 7px 12px; background: var(--paper); color: var(--ink); font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; gap: 7px; }
+  .tab:hover { border-color: var(--ink); }
+  .tab[aria-selected="true"] { border-color: var(--ink); background: var(--sand); box-shadow: 3px 3px 0 var(--ink); }
+  .tab small { font: 500 10.5px/1 var(--mono); letter-spacing: .04em; text-transform: uppercase; background: var(--gold); color: #1F1D1A; padding: 3px 5px; border-radius: 5px; }
+  .panel { border: 2px solid var(--ink); border-radius: 14px; padding: 20px 20px 18px; box-shadow: 4px 4px 0 var(--ink); max-width: 760px; }
+  .panel[hidden] { display: none; }
+  .panel h3 { font-family: var(--body); font-size: 19px; margin: 0 0 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .panel > p { margin: 0 0 14px; color: var(--muted); font-size: 15.5px; }
+  .panel pre { margin: 0 0 14px; }
+  .badge { font: 500 11.5px/1 var(--mono); padding: 4px 7px; border-radius: 6px; border: 1.5px solid var(--ink); }
+  .badge.ok { background: #DDF2E4; color: #1F5A35; border-color: #1F5A35; }
+  .badge.docs { background: #FFF1CC; color: #6B4B00; border-color: #6B4B00; }
+  .facts { display: grid; grid-template-columns: 120px 1fr; gap: 8px 14px; margin: 0 0 14px; font-size: 15px; }
+  .facts dt { color: var(--muted); }
+  .facts dd { margin: 0; }
+  .kinds { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+  .kinds span { font-size: 12.5px; font-weight: 600; padding: 2px 9px; border-radius: 999px; border: 1.5px solid var(--ink); }
+  .kinds span.no { border-style: dashed; color: var(--muted); border-color: var(--muted); font-weight: 500; }
+  .panel .note { margin: 0 0 14px; font-size: 14.5px; color: var(--muted); min-height: 0; }
+  .panel button.preview { background: var(--paper); border: 2px solid var(--ink); border-radius: 9px; padding: 6px 12px; font-weight: 600; font-size: 14px; color: var(--ink); box-shadow: 2px 2px 0 var(--ink); }
+  .panel button.preview:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--ink); }
+  .cli { margin: 22px 0 0; max-width: 760px; }
+  .cli pre { margin-bottom: 10px; }
+  .cli pre .c { opacity: .55; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .badge.ok { background: #183B27; color: #A8E3BE; border-color: #A8E3BE; }
+    :root:not([data-theme="light"]) .badge.docs { background: #3A2E10; color: #F5D78A; border-color: #F5D78A; }
+  }
+  :root[data-theme="dark"] .badge.ok { background: #183B27; color: #A8E3BE; border-color: #A8E3BE; }
+  :root[data-theme="dark"] .badge.docs { background: #3A2E10; color: #F5D78A; border-color: #F5D78A; }
+
   .privacy { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; max-width: 760px; }
   .privacy div b { display: block; font-weight: 600; margin-bottom: 4px; }
   .privacy div span { font-size: 15px; color: var(--muted); }
@@ -136,6 +173,8 @@
     .privacy { grid-template-columns: 1fr; }
     .events li { grid-template-columns: 1fr auto; }
     .events li .d { grid-column: 1 / -1; }
+    .facts { grid-template-columns: 1fr; gap: 2px; }
+    .facts dd { margin-bottom: 8px; }
     .hero { padding-block: 36px 28px; }
     .lede { font-size: 18px; }
   }
@@ -159,6 +198,7 @@
   .bubble .dot.done { background: #2E8B57; } .bubble .dot.permission { background: #D9A400; } .bubble .dot.idle { background: #888; }
   .bubble .title { font-weight: 700; font-size: 13px; }
   .bubble .project { margin-left: auto; font-size: 11px; padding: 2px 7px; border-radius: 999px; background: #F1E9DF; color: #5A4A3A; }
+  .bubble .agent { font-size: 11px; padding: 1px 6px; border-radius: 999px; border: 1.5px solid #1F1D1A; background: #fff; color: #1F1D1A; white-space: nowrap; }
   .bubble .msg { white-space: pre-wrap; word-break: break-word; }
   .bubble .opts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .bubble .opt { font-size: 12px; padding: 3px 9px; border: 1.5px solid #1F1D1A; border-radius: 999px; background: var(--chip); }
@@ -239,6 +279,7 @@
     <img src="assets/icon128.png" alt=""> Nudge
     <nav>
       <a href="#escalation">Escalation</a>
+      <a href="#agents">Agents</a>
       <a href="#how">How it works</a>
       <a href="#install">Install</a>
       <a href="https://github.com/JayroldSoriano/nudge-mascot">GitHub</a>
@@ -246,16 +287,24 @@
   </header>
 
   <section class="hero" style="border-top:0">
-    <p class="eyebrow">A Chrome extension for Claude Code</p>
-    <h1>Claude is waiting on you. <em>Nudge</em> makes sure you notice.</h1>
-    <p class="lede">You start a task, tab over to the browser for a second, and come back ten minutes later to find Claude sitting on a question. Nudge puts a small pixel mascot on whatever tab you're reading, with the question in a bubble. <b>Ignore it and it gets annoyed.</b></p>
-    <p class="pointer"><span id="pointer-text">That's Nudge in the corner. This page just pretended Claude asked you something. Keep reading and see what happens.</span><button class="link" id="bring-back" hidden>Bring Nudge back</button></p>
+    <p class="eyebrow">A Chrome extension for coding agents</p>
+    <h1>Your agent is waiting on you. <em>Nudge</em> makes sure you notice.</h1>
+    <p class="lede">You start a task, tab over to the browser for a second, and come back ten minutes later to find Claude (or Codex, or Grok) sitting on a question. Nudge puts a small pixel mascot on whatever tab you're reading, with the question in a bubble. <b>Ignore it and it gets annoyed.</b></p>
+    <p class="pointer"><span id="pointer-text">That's Nudge in the corner. This page just pretended your agent asked you something. Keep reading and see what happens.</span><button class="link" id="bring-back" hidden>Bring Nudge back</button></p>
     <div class="install" id="install-cmd"><span>npx nudge-mascot setup</span><button type="button" id="copy-cmd">Copy</button></div>
     <div class="ctas">
       <a class="btn primary" id="store-btn" href="STORE_URL">Add to Chrome</a>
       <a class="btn" href="https://github.com/JayroldSoriano/nudge-mascot">Source on GitHub</a>
     </div>
     <p class="fine">Free and open source. Nothing leaves your machine. Needs Node 18 and Chrome 116 or newer.</p>
+    <ul class="works" aria-label="Works with">
+      <li><a href="#agents" data-agent-link="claude-code"><b>Claude Code</b></a></li>
+      <li><a href="#agents" data-agent-link="codex"><b>Codex CLI</b></a></li>
+      <li><a href="#agents" data-agent-link="gemini"><b>Gemini CLI</b></a></li>
+      <li><a href="#agents" data-agent-link="grok"><b>Grok Build</b> · new</a></li>
+      <li><a href="#agents" data-agent-link="cursor"><b>Cursor</b> · new</a></li>
+      <li><a href="#agents" data-agent-link="opencode"><b>OpenCode</b> · new</a></li>
+    </ul>
   </section>
 
   <section id="escalation">
@@ -286,14 +335,116 @@
     <p class="fine">Nudge follows you: switch tabs or windows and it reappears there with the same countdown. Dismiss it once and it's gone everywhere. Answer in the terminal and it's gone too.</p>
   </section>
 
+  <section id="agents">
+    <h2>Works with six coding agents</h2>
+    <p class="section-lede">Every agent runs the same tiny hook. The relay picks an <b>adapter</b> for that agent and turns its event into the one shape the bubble understands, so badges, Jump to terminal, the session switcher and the waiting stats work the same everywhere. <code>setup</code> with no flags installs hooks for every agent it finds; pick one below to install just that.</p>
+    <div class="tabs" role="tablist" aria-label="Coding agent">
+      <button class="tab" role="tab" id="tab-claude-code" aria-controls="panel-claude-code" aria-selected="true" data-agent="claude-code">Claude Code</button>
+      <button class="tab" role="tab" id="tab-codex" aria-controls="panel-codex" aria-selected="false" tabindex="-1" data-agent="codex">Codex CLI</button>
+      <button class="tab" role="tab" id="tab-gemini" aria-controls="panel-gemini" aria-selected="false" tabindex="-1" data-agent="gemini">Gemini CLI</button>
+      <button class="tab" role="tab" id="tab-grok" aria-controls="panel-grok" aria-selected="false" tabindex="-1" data-agent="grok">Grok Build <small>new</small></button>
+      <button class="tab" role="tab" id="tab-cursor" aria-controls="panel-cursor" aria-selected="false" tabindex="-1" data-agent="cursor">Cursor <small>new</small></button>
+      <button class="tab" role="tab" id="tab-opencode" aria-controls="panel-opencode" aria-selected="false" tabindex="-1" data-agent="opencode">OpenCode <small>new</small></button>
+    </div>
+
+    <div class="panel" role="tabpanel" id="panel-claude-code" aria-labelledby="tab-claude-code" tabindex="0">
+      <h3>Claude Code <span class="badge ok">Verified in daily use</span></h3>
+      <p>The original. The only agent you can answer from the bubble or your phone.</p>
+      <pre>npx nudge-mascot setup --agent claude-code</pre>
+      <dl class="facts">
+        <dt>Hooks go in</dt><dd><code>~/.claude/settings.json</code>, backed up first, plus the approval hooks that let you reply from the bubble</dd>
+        <dt>Nudges</dt><dd><span class="kinds"><span>question</span><span>permission</span><span>done</span><span>idle</span></span></dd>
+        <dt>Answer from</dt><dd>The bubble (Allow / Deny, pick an option), your phone once paired, or the terminal</dd>
+      </dl>
+      <button type="button" class="preview" data-preview="claude-code">Preview a Claude Code nudge</button>
+    </div>
+
+    <div class="panel" role="tabpanel" id="panel-codex" aria-labelledby="tab-codex" tabindex="0" hidden>
+      <h3>OpenAI Codex CLI <span class="badge docs">Built from the docs</span></h3>
+      <p>Detected from <code>~/.codex</code> or a <code>codex</code> binary.</p>
+      <pre>npx nudge-mascot setup --agent codex</pre>
+      <dl class="facts">
+        <dt>Hooks go in</dt><dd><code>~/.codex/hooks.json</code>: <code>PermissionRequest</code>, <code>PostToolUse</code>, <code>UserPromptSubmit</code>, <code>Stop</code></dd>
+        <dt>Nudges</dt><dd><span class="kinds"><span>permission</span><span>done</span><span class="no">question (unverified)</span><span class="no">no idle event</span></span></dd>
+        <dt>Answer from</dt><dd>The terminal</dd>
+      </dl>
+      <p class="note">Codex only runs hooks you trust: after setup, type <code>/hooks</code> in Codex and trust the Nudge entries.</p>
+      <button type="button" class="preview" data-preview="codex">Preview a Codex nudge</button>
+    </div>
+
+    <div class="panel" role="tabpanel" id="panel-gemini" aria-labelledby="tab-gemini" tabindex="0" hidden>
+      <h3>Google Gemini CLI <span class="badge docs">Built from the docs</span></h3>
+      <p>Detected from <code>~/.gemini/settings.json</code> or a <code>gemini</code> binary (Antigravity creates <code>~/.gemini</code> too, so the folder alone isn't enough).</p>
+      <pre>npx nudge-mascot setup --agent gemini</pre>
+      <dl class="facts">
+        <dt>Hooks go in</dt><dd><code>~/.gemini/settings.json</code>: <code>Notification</code>, <code>AfterAgent</code>, <code>BeforeAgent</code>, <code>AfterTool</code></dd>
+        <dt>Nudges</dt><dd><span class="kinds"><span>permission</span><span>done</span><span class="no">no question or idle hook</span></span></dd>
+        <dt>Answer from</dt><dd>The terminal</dd>
+      </dl>
+      <p class="note">Some Gemini CLI versions (0.45 to 0.55.1) never fire <code>AfterAgent</code>, so "done" may not arrive there.</p>
+      <button type="button" class="preview" data-preview="gemini">Preview a Gemini nudge</button>
+    </div>
+
+    <div class="panel" role="tabpanel" id="panel-grok" aria-labelledby="tab-grok" tabindex="0" hidden>
+      <h3>xAI Grok Build <span class="badge docs">Built from the source</span></h3>
+      <p>Detected from <code>~/.grok/config.toml</code> or a <code>grok</code> binary.</p>
+      <pre>npx nudge-mascot setup --agent grok</pre>
+      <dl class="facts">
+        <dt>Hooks go in</dt><dd>Their own file, <code>~/.grok/hooks/nudge.json</code> (user hook files are always trusted; uninstall deletes it)</dd>
+        <dt>Nudges</dt><dd><span class="kinds"><span>permission</span><span>question</span><span>done</span><span>idle</span></span></dd>
+        <dt>Answer from</dt><dd>The terminal</dd>
+      </dl>
+      <p class="note">Grok also runs the hooks in <code>~/.claude/settings.json</code>. Nudge spots those copies and drops them, so a Grok turn never shows up as "Claude is done".</p>
+      <button type="button" class="preview" data-preview="grok">Preview a Grok nudge</button>
+    </div>
+
+    <div class="panel" role="tabpanel" id="panel-cursor" aria-labelledby="tab-cursor" tabindex="0" hidden>
+      <h3>Cursor <span class="badge docs">Built from the source</span></h3>
+      <p>The editor's agent and the <code>cursor-agent</code> CLI. Detected from <code>~/.cursor</code> or a <code>cursor-agent</code> / <code>cursor</code> binary.</p>
+      <pre>npx nudge-mascot setup --agent cursor</pre>
+      <dl class="facts">
+        <dt>Hooks go in</dt><dd><code>~/.cursor/hooks.json</code> (flat <code>version: 1</code> entries): <code>stop</code>, <code>afterAgentResponse</code>, <code>beforeSubmitPrompt</code></dd>
+        <dt>Nudges</dt><dd><span class="kinds"><span>done</span><span class="no">no approval event</span></span></dd>
+        <dt>Answer from</dt><dd>Cursor itself</dd>
+      </dl>
+      <p class="note">Cursor has no hook for its approval prompts, so Nudge doesn't fake one. "Done" shows the agent's last reply. Like Grok, Cursor also runs Claude Code's hooks, and Nudge drops those copies.</p>
+      <button type="button" class="preview" data-preview="cursor">Preview a Cursor nudge</button>
+    </div>
+
+    <div class="panel" role="tabpanel" id="panel-opencode" aria-labelledby="tab-opencode" tabindex="0" hidden>
+      <h3>OpenCode <span class="badge docs">Built from the source</span></h3>
+      <p>OpenCode 2 has no shell hooks, only plugins, so Nudge installs a small one. Detected from <code>~/.config/opencode</code> or an <code>opencode</code> binary.</p>
+      <pre>npx nudge-mascot setup --agent opencode</pre>
+      <dl class="facts">
+        <dt>Installs</dt><dd>A plugin, <code>~/.config/opencode/plugins/nudge.js</code>, that pipes OpenCode's events into the same hook</dd>
+        <dt>Nudges</dt><dd><span class="kinds"><span>permission</span><span>question</span><span>done</span></span></dd>
+        <dt>Answer from</dt><dd>The terminal</dd>
+      </dl>
+      <p class="note">Needs OpenCode 2 or later. Restart OpenCode after setup so it loads the plugin.</p>
+      <button type="button" class="preview" data-preview="opencode">Preview an OpenCode nudge</button>
+    </div>
+
+    <div class="cli">
+      <pre><span class="c"># every agent found on this machine</span>
+npx nudge-mascot setup
+<span class="c"># or name them, comma-separated</span>
+npx nudge-mascot setup --agent claude-code,grok,opencode
+<span class="c"># a fake nudge from one agent, hook status for all, remove everything</span>
+npx nudge-mascot test permission --agent cursor
+npx nudge-mascot status
+npx nudge-mascot uninstall</pre>
+      <p class="fine">Restart running agent sessions after setup; they read hooks at startup. "Built from the docs / source" means the adapter follows that agent's published hook format but hasn't been confirmed against a live install yet. <a href="https://github.com/JayroldSoriano/nudge-mascot/issues">Tell us</a> if yours behaves differently.</p>
+    </div>
+  </section>
+
   <section id="how">
     <h2>How it works</h2>
     <ol class="steps">
-      <li><div><b>Claude Code fires a hook</b><span>The Stop, Notification, and AskUserQuestion hooks run a two-line shell script that forwards the event with curl. It never blocks Claude.</span></div></li>
-      <li><div><b>A relay on your machine receives it</b><span>A zero-dependency Node server bound to 127.0.0.1. It accepts connections from the extension only and rejects any web page.</span></div></li>
+      <li><div><b>Your agent fires a hook</b><span>Claude Code, Codex, Gemini CLI, Grok Build and Cursor run one small shell script that forwards the event with curl and names the agent (<code>nudge-hook.sh grok</code>). OpenCode's plugin pipes its events into the same script. It never blocks the agent.</span></div></li>
+      <li><div><b>A relay on your machine turns it into one event</b><span>A zero-dependency Node server bound to 127.0.0.1 picks that agent's adapter and maps the payload to the shared shape: a question, permission, done or idle nudge. It accepts connections from the extension only and rejects any web page.</span></div></li>
       <li><div><b>The extension draws Nudge on your active tab</b><span>The sprite and bubble live in a closed shadow root, so page styles can't touch them and the script never reads the page.</span></div></li>
     </ol>
-    <p class="flow"><b>hook</b> → curl → <b>relay on 127.0.0.1</b> → WebSocket → <b>extension</b> → Nudge on the tab you're looking at</p>
+    <p class="flow"><b>agent hook</b> → curl → <b>relay on 127.0.0.1</b> → per-agent adapter → WebSocket → <b>extension</b> → Nudge on the tab you're looking at</p>
   </section>
 
   <section id="privacy">
@@ -309,7 +460,7 @@
     <h2>Install in two steps</h2>
     <ol class="steps">
       <li><div><b>Add the extension to Chrome</b><span>Click "Add to Chrome" on the Web Store listing. The extension opens a setup page with one command to copy.</span></div></li>
-      <li><div><b>Run that command in your terminal</b><span>It adds the hooks to <code>~/.claude/settings.json</code> (with a backup next to it), starts the local relay, and keeps it running at login. Then restart any open Claude Code session.</span></div></li>
+      <li><div><b>Run that command in your terminal</b><span>It adds Nudge's hooks to every agent it finds (Claude Code's <code>~/.claude/settings.json</code>, Codex, Gemini CLI, Grok Build, Cursor, OpenCode), backing up each config first. It also starts the local relay and keeps it running at login. Then restart any open agent session. To pick agents, add <code>--agent</code>: see <a href="#agents">Works with six coding agents</a>.</span></div></li>
     </ol>
     <pre>npx nudge-mascot setup</pre>
     <p class="install-steps">To check it works, run <code>npx nudge-mascot test</code> or press <b>Preview nudge</b> in the extension popup. Nudge pops up on the current tab.</p>
@@ -319,16 +470,18 @@
     </div>
     <h3 class="use-h">Then just keep working</h3>
     <ul class="use">
-      <li>Work in Claude Code as usual. When it asks a question, needs permission, or finishes, Nudge appears on whatever tab is open with the message in a bubble.</li>
+      <li>Work in your agent as usual. When it asks a question, needs permission, or finishes, Nudge appears on whatever tab is open with the message in a bubble and the agent's name on a badge.</li>
       <li>Questions and permissions escalate the longer you ignore them. Done messages stay quiet and fade after 20 seconds.</li>
-      <li>Answer in the terminal and Nudge disappears everywhere. Or press Esc, click <b>Got it</b>, or snooze for five minutes.</li>
+      <li>Answer in the terminal and Nudge disappears everywhere. For Claude Code you can also answer right in the bubble. Or press Esc, click <b>Got it</b>, or snooze for five minutes.</li>
+      <li>Several sessions waiting at once, even from different agents, get a row of pills so you can switch between them. <b>Jump to terminal</b> brings the right window forward.</li>
       <li>The popup holds the settings: which events to show, Gentle or Full Chaos or Off, sound, corner, and timings.</li>
     </ul>
   </section>
 
   <section id="pro">
     <h2>Coming next</h2>
-    <p>Answer questions and approve permissions from the bubble. A button that jumps back to your terminal. One view when several sessions want you. Mascot and sound packs. A weekly "Claude waited on you 47 minutes" that you'll want to screenshot.</p>
+    <p><b>Shipped since launch:</b> answering Claude Code from the bubble or your phone, Jump to terminal, the session switcher, weekly waiting stats, and adapters for Codex, Gemini CLI, Grok Build, Cursor and OpenCode.</p>
+    <p><b>Next:</b> mascot and sound packs, answering the other agents from the bubble where their hooks allow it, desktop apps on the same relay, and a Firefox port.</p>
     <form class="notify" id="notify" data-endpoint="https://api.convertkit.com/v3/forms/10117772/subscribe" data-key="7rAfBc1tD4x1vt6mBYGe2A" novalidate>
       <label for="email" class="eyebrow" style="flex-basis:100%;margin:0">Get one email when it ships</label>
       <input type="email" id="email" name="email" placeholder="you@example.com" required autocomplete="email">
@@ -339,13 +492,13 @@
 
   <footer>
     <p>Made by <a href="https://github.com/JayroldSoriano">Jayrold Soriano</a> · <a href="https://github.com/sponsors/JayroldSoriano">Sponsor</a> · <a href="privacy.html">Privacy</a> · <a href="https://github.com/JayroldSoriano/nudge-mascot/issues">Issues</a></p>
-    <p>Independent project, not affiliated with or endorsed by Anthropic. "Claude" and "Claude Code" are trademarks of Anthropic.</p>
+    <p>Independent project, not affiliated with or endorsed by Anthropic, OpenAI, Google, xAI, Anysphere or the OpenCode project. "Claude" and "Claude Code" are trademarks of Anthropic; Codex, Gemini, Grok, Cursor and OpenCode belong to their respective owners.</p>
   </footer>
 </div>
 
 <!-- Intro curtain. Sits on top of the fully rendered page; the page itself never waits for it. -->
 <div class="curtain" id="curtain" aria-hidden="true">
-  <div class="mark"><b>Nudge</b><span>works with Claude Code</span></div>
+  <div class="mark"><b>Nudge</b><span>works with your coding agent</span></div>
   <div class="hem"></div>
   <button type="button" class="skip" id="skip-intro">Skip</button>
 </div>
@@ -392,11 +545,20 @@
     done:       { kind: 'done', title: 'Claude is done', project: 'nudge', message: 'Renamed the package, added the MIT license, and wrote the installer. All 14 tests pass. Ready to push when you are.', auto: 20 },
     idle:       { kind: 'idle', title: 'Claude is waiting', project: 'nudge', message: 'No task running. Claude has been idle for a minute.', auto: 20 },
   };
+  // One sample per agent, with the titles and messages each adapter produces (relay/adapters/*.js).
+  const AGENT_EVENTS = {
+    'claude-code': EVENTS.question,
+    codex:    { kind: 'permission', title: 'Codex needs permission', project: 'shop-api', agent: 'Codex', message: 'Bash: npm install left-pad\nNeeds network access' },
+    gemini:   { kind: 'permission', title: 'Gemini needs permission', project: 'shop-api', agent: 'Gemini', message: 'Shell: npm test' },
+    grok:     { kind: 'question', title: 'Grok has a question', project: 'shop-api', agent: 'Grok', message: 'Which approach should I take for the auth refactor?', options: ['Keep sessions', 'Move to JWT'] },
+    cursor:   { kind: 'done', title: 'Cursor is done', project: 'shop-api', agent: 'Cursor', message: 'Renamed the module and fixed the imports. Tests pass.', auto: 20 },
+    opencode: { kind: 'permission', title: 'OpenCode needs permission', project: 'shop-api', agent: 'OpenCode', message: 'bash: git push origin main' },
+  };
   const STEPS = [0, 10, 20, 35]; // seconds on this page
   const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   const HINTS = {
-    0: (s) => s < 3 ? 'Claude is blocked until you answer.' : `Waiting ${fmt(s)}. Nudge is still being polite.`,
-    1: (s) => `You've kept Claude waiting ${fmt(s)}.`,
+    0: (s) => s < 3 ? `${who()} is blocked until you answer.` : `Waiting ${fmt(s)}. Nudge is still being polite.`,
+    1: (s) => `You've kept ${who()} waiting ${fmt(s)}.`,
     2: (s) => `${fmt(s)}. Nudge is not amused.`,
     3: (s) => `${fmt(s)}. Seriously.`,
     done: () => 'Esc or click to dismiss.',
@@ -409,6 +571,7 @@
   const bringBack = document.getElementById('bring-back'), pointer = document.getElementById('pointer-text');
   let current = null, level = 0, waited = 0, tick = null, waveTimer = null, dismissTimer = null, snoozeTimer = null, manual = false;
 
+  const who = () => (current && current.agent) || 'Claude';
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   function show(ev) {
@@ -417,7 +580,7 @@
     const opts = (ev.options || []).map((o) => `<span class="opt">${esc(o)}</span>`).join('');
     slot.innerHTML = `
       <div class="bubble" role="status">
-        <div class="head"><span class="dot ${ev.kind}"></span><span class="title">${esc(ev.title)}</span><span class="project">${esc(ev.project)}</span></div>
+        <div class="head"><span class="dot ${ev.kind}"></span><span class="title">${esc(ev.title)}</span><span class="project">${esc(ev.project)}</span>${ev.agent ? `<span class="agent">${esc(ev.agent)}</span>` : ''}</div>
         <div class="msg">${esc(ev.message)}</div>
         ${opts ? `<div class="opts">${opts}</div>` : ''}
         <div class="foot"><span class="hint"></span><button type="button" class="snooze" hidden>Snooze 5m</button><button type="button" class="primary dismiss">Got it</button></div>
@@ -521,6 +684,31 @@
   document.querySelectorAll('.events button[data-kind]').forEach((b) => b.addEventListener('click', () => {
     show(EVENTS[b.dataset.kind]);
     pointer.textContent = `That's a "${b.dataset.kind}" nudge. ${b.dataset.kind === 'done' || b.dataset.kind === 'idle' ? 'It goes away by itself.' : 'It stays until you act.'}`;
+  }));
+  // Agent tabs (arrow keys move between them, as a tablist should) and their previews.
+  const tabs = [...document.querySelectorAll('.tab[data-agent]')];
+  function selectAgent(id, focus) {
+    tabs.forEach((t) => {
+      const on = t.dataset.agent === id;
+      t.setAttribute('aria-selected', String(on));
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+      if (on && focus) t.focus();
+    });
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener('click', () => selectAgent(t.dataset.agent));
+    t.addEventListener('keydown', (e) => {
+      const d = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+      if (d) { e.preventDefault(); selectAgent(tabs[(i + d + tabs.length) % tabs.length].dataset.agent, true); }
+      if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); selectAgent(tabs[e.key === 'Home' ? 0 : tabs.length - 1].dataset.agent, true); }
+    });
+  });
+  document.querySelectorAll('[data-agent-link]').forEach((a) => a.addEventListener('click', () => selectAgent(a.dataset.agentLink)));
+  document.querySelectorAll('button[data-preview]').forEach((b) => b.addEventListener('click', () => {
+    const ev = AGENT_EVENTS[b.dataset.preview];
+    show(ev);
+    pointer.textContent = `That's what a ${ev.agent || 'Claude Code'} nudge looks like.`;
   }));
   bringBack.addEventListener('click', () => { show(EVENTS.question); pointer.textContent = "Back at level 0. Ignore it again and it'll escalate."; });
   avatar.addEventListener('click', () => { if (current) dismiss(); });
