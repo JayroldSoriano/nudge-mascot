@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Nudge",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A pixel mascot waves in your browser when Claude Code has a question, needs permission, or is done. Local only.",
   "minimum_chrome_version": "116",
   "icons": {

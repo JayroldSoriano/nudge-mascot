@@ -87,6 +87,7 @@
   <div class="row"><label>Level timings (s) <span class="trio"><input type="number" id="escalateAt1" min="1"> <input type="number" id="escalateAt2" min="1"> <input type="number" id="escalateAt3" min="1"></span></label></div>
   <div class="row"><label>Snooze length (min) <input type="number" id="snoozeMin" min="1" max="60"></label></div>
 
+  <div id="phoneSection" hidden>
   <h2 class="section">Phone</h2>
   <div class="row"><span id="phoneState">Checking…</span><button id="pairStart" hidden>Pair a phone</button><button id="unpair" hidden>Unpair</button></div>
   <div class="help" style="margin:2px 0 4px">Optional. The bubble answers Claude without a phone; pairing adds answers from your phone.</div>
@@ -96,15 +97,16 @@
     <div class="paircode">Code <code id="pairCode"></code></div>
     <div class="help" style="margin-top:6px">Open the Nudge app and scan, or type the code. The relay is <code id="pairRelay"></code>. <span id="pairHint"></span></div>
   </div>
+  </div>
 
   <h2 class="section">Test nudges</h2>
-  <div class="help" style="margin:0 0 6px">Sends a fake event through the relay, like <code>npx nudge-mascot test</code>: the bubble here and the paired phone both get it. Answers are recorded like real ones.</div>
+  <div class="help" style="margin:0 0 6px">Sends a fake event through the relay, like <code>npx nudge-mascot test</code>. Answers are recorded like real ones.</div>
   <div class="actions" style="margin-top:0; flex-wrap: wrap">
     <button class="test" data-kind="question" title="One question: tap a choice in the bubble to answer">Question</button>
     <button class="test" data-kind="questions" title="Two questions, one multi-select: pick, then Send answers">Questions</button>
     <button class="test" data-kind="approve" title="A permission request you can Allow or Deny in the bubble or on the phone">Permission</button>
     <button class="test" data-kind="done">Done</button>
-    <button class="test" data-kind="approve" data-phone-delay="5" title="Lock the phone within 5 seconds; the notification arrives with Allow / Deny">Lock screen (5 s)</button>
+    <button class="test" id="lockTest" hidden data-kind="approve" data-phone-delay="5" title="Lock the phone within 5 seconds; the notification arrives with Allow / Deny">Lock screen (5 s)</button>
     <button class="test" data-kind="jump" title="A nudge whose Jump to terminal button switches to Terminal (from the CLI: the terminal you ran it in)">Jump back</button>
     <button class="test" data-kind="multi" title="Three sessions waiting at once: tap the pills to switch between them">3 sessions</button>
   </div>

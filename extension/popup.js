@@ -6,6 +6,8 @@ const DEFAULTS = {
 const fields = Object.keys(DEFAULTS);
 let settings = { ...DEFAULTS };
 let relaySecret = ''; // the relay's connection code (chrome.storage.local, set by Connect below)
+// Phone pairing stays hidden until the hosted relay and the app are live; the store build is local only.
+const PHONE = false;
 
 async function load() {
   settings = { ...DEFAULTS, ...(await chrome.storage.sync.get(DEFAULTS)) };
@@ -72,6 +74,7 @@ const relayApi = (path, init = {}) => fetch(`http://127.0.0.1:${settings.port}/$
 });
 
 const $ = (id) => document.getElementById(id);
+if (PHONE) $('phoneSection').hidden = $('lockTest').hidden = false;
 
 // ---------- Connect: paste the relay's code (printed by `npx nudge-mascot setup` and `status`) ----------
 function showConnect() {
@@ -123,6 +126,7 @@ function tickHint() {
 setInterval(() => { if (!$('pairBox').hidden) tickHint(); }, 1000);
 
 async function refreshPhone() {
+  if (!PHONE) return;
   let s;
   try { s = await relayApi('pair/status'); } catch (e) {
     $('phoneState').textContent = /connection code/.test(e.message) ? 'Connect Nudge first (above)' : 'Relay offline';
