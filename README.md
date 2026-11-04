@@ -39,8 +39,8 @@ it running at login (launchd on macOS, systemd user service on Linux), and print
 and a **connection code** (see [Privacy](#privacy)). Running it again is safe: hooks already present are left
 alone, the backup keeps your settings from before the first run, and the code stays the same.
 
-Then load the extension: open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**,
-and pick `~/.claude-nudge/extension` (Chrome Web Store listing coming). Click the Nudge toolbar icon, and paste
+Then add the extension from the [Chrome Web Store](https://chromewebstore.google.com/detail/nudge/hjonkcnipffdjhcacgfoppaagkchdgid) (working on Nudge itself? load
+`~/.claude-nudge/extension` unpacked from `chrome://extensions` instead). Click the Nudge toolbar icon, and paste
 the connection code into **Connect** (the welcome page that opens on install has the same field;
 `npx nudge-mascot status` prints the code again). Restart any running Claude Code session and run:
 

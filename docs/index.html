@@ -293,7 +293,7 @@
     <p class="pointer"><span id="pointer-text">That's Nudge in the corner. This page just pretended your agent asked you something. Keep reading and see what happens.</span><button class="link" id="bring-back" hidden>Bring Nudge back</button></p>
     <div class="install" id="install-cmd"><span>npx nudge-mascot setup</span><button type="button" id="copy-cmd">Copy</button></div>
     <div class="ctas">
-      <a class="btn primary" id="store-btn" href="STORE_URL">Add to Chrome</a>
+      <a class="btn primary" id="store-btn" href="https://chromewebstore.google.com/detail/nudge/hjonkcnipffdjhcacgfoppaagkchdgid">Add to Chrome</a>
       <a class="btn" href="https://github.com/JayroldSoriano/nudge-mascot">Source on GitHub</a>
     </div>
     <p class="fine">Free and open source. Nothing leaves your machine. Needs Node 18 and Chrome 116 or newer.</p>
@@ -465,7 +465,7 @@ npx nudge-mascot uninstall</pre>
     <pre>npx nudge-mascot setup</pre>
     <p class="install-steps">To check it works, run <code>npx nudge-mascot test</code> or press <b>Preview nudge</b> in the extension popup. Nudge pops up on the current tab.</p>
     <div class="ctas">
-      <a class="btn primary" id="store-btn-2" href="STORE_URL">Add to Chrome</a>
+      <a class="btn primary" id="store-btn-2" href="https://chromewebstore.google.com/detail/nudge/hjonkcnipffdjhcacgfoppaagkchdgid">Add to Chrome</a>
       <a class="btn" href="https://github.com/JayroldSoriano/nudge-mascot#install">Manual setup</a>
     </div>
     <h3 class="use-h">Then just keep working</h3>
@@ -722,9 +722,6 @@ npx nudge-mascot uninstall</pre>
     (navigator.clipboard && navigator.clipboard.writeText) ? navigator.clipboard.writeText(cmd).then(ok, () => select()) : select();
     function select() { const r = document.createRange(); r.selectNodeContents(btn.previousElementSibling); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
   });
-
-  // Store buttons point at the README until the Web Store listing is live.
-  document.querySelectorAll('a[href="STORE_URL"]').forEach((a) => { a.href = 'https://github.com/JayroldSoriano/nudge-mascot#install'; a.textContent = 'Install the extension'; });
 
   const form = document.getElementById('notify'), note = document.getElementById('note');
   form.addEventListener('submit', async (e) => {

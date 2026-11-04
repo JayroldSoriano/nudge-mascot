@@ -28,7 +28,7 @@ const RELAY = path.join(INSTALL_DIR, 'relay', 'server.js');
 const LAUNCHD_LABEL = 'com.claude-nudge.relay';
 const PLIST = path.join(HOME, 'Library', 'LaunchAgents', `${LAUNCHD_LABEL}.plist`);
 const SYSTEMD_UNIT = path.join(HOME, '.config', 'systemd', 'user', 'claude-nudge.service');
-const STORE_URL = process.env.CLAUDE_NUDGE_STORE_URL || ''; // set once the Web Store listing is live
+const STORE_URL = 'https://chromewebstore.google.com/detail/nudge/hjonkcnipffdjhcacgfoppaagkchdgid';
 const pairing = require('../relay/pairing'); // phone pairing: cloud.json + the approval hooks
 const secret = require('../relay/secret'); // the per-install secret the relay wants from every client
 const APPROVE = pairing.APPROVE;
@@ -409,11 +409,8 @@ async function setup() {
   else warn(`relay did not answer on port ${PORT}; try: npx nudge-mascot start`);
 
   log('\nLast step: install the extension.');
-  if (STORE_URL) log(`  ${STORE_URL}`);
-  else {
-    log('  1. Open chrome://extensions and turn on Developer mode.');
-    log(`  2. Click "Load unpacked" and pick: ${path.join(INSTALL_DIR, 'extension')}`);
-  }
+  log(`  Add Nudge to Chrome: ${STORE_URL}`);
+  log(`  (Working on Nudge itself? Load ${path.join(INSTALL_DIR, 'extension')} unpacked from chrome://extensions instead.)`);
   log('  Then click the Nudge toolbar icon, choose Connect, and paste this code (`npx nudge-mascot status` prints it again):');
   log(`\n      ${code}\n`);
   const names = agents.map((id) => AGENTS[id].label).join(' / ');
