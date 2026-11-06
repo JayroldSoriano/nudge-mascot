@@ -168,7 +168,8 @@ function readJson(file) {
 
 // On Windows a command is found with one of PATHEXT's extensions: claude.exe, codex.cmd (npm's shim), gemini.ps1.
 function onPath(bin, platform = process.platform) {
-  const exts = platform === 'win32' ? ['', ...(process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean)] : [''];
+  // Lower case: Windows matches names in any case, and npm's shims are written codex.cmd, codex.ps1.
+  const exts = platform === 'win32' ? ['', ...(process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD').toLowerCase().split(';').filter(Boolean)] : [''];
   return (process.env.PATH || '').split(path.delimiter).some((d) => d && exts.some((x) => fs.existsSync(path.join(d, bin + x))));
 }
 
