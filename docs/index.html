@@ -349,12 +349,12 @@
 
     <div class="panel" role="tabpanel" id="panel-claude-code" aria-labelledby="tab-claude-code" tabindex="0">
       <h3>Claude Code <span class="badge ok">Verified in daily use</span></h3>
-      <p>The original. The only agent you can answer from the bubble or your phone.</p>
+      <p>The original. The only agent you can answer from the bubble.</p>
       <pre>npx nudge-mascot setup --agent claude-code</pre>
       <dl class="facts">
         <dt>Hooks go in</dt><dd><code>~/.claude/settings.json</code>, backed up first, plus the approval hooks that let you reply from the bubble</dd>
         <dt>Nudges</dt><dd><span class="kinds"><span>question</span><span>permission</span><span>done</span><span>idle</span></span></dd>
-        <dt>Answer from</dt><dd>The bubble (Allow / Deny, pick an option), your phone once paired, or the terminal</dd>
+        <dt>Answer from</dt><dd>The bubble (Allow / Deny, pick an option) or the terminal</dd>
       </dl>
       <button type="button" class="preview" data-preview="claude-code">Preview a Claude Code nudge</button>
     </div>
@@ -480,8 +480,8 @@ npx nudge-mascot uninstall</pre>
 
   <section id="pro">
     <h2>Coming next</h2>
-    <p><b>Shipped since launch:</b> answering Claude Code from the bubble or your phone, Jump to terminal, the session switcher, weekly waiting stats, and adapters for Codex, Gemini CLI, Grok Build, Cursor and OpenCode.</p>
-    <p><b>Next:</b> mascot and sound packs, answering the other agents from the bubble where their hooks allow it, desktop apps on the same relay, and a Firefox port.</p>
+    <p><b>Shipped since launch:</b> answering Claude Code from the bubble, Jump to terminal, the session switcher, weekly waiting stats, and adapters for Codex, Gemini CLI, Grok Build, Cursor and OpenCode.</p>
+    <p><b>Next:</b> a phone app for answering away from your desk, mascot and sound packs, answering the other agents from the bubble where their hooks allow it, desktop apps on the same relay, and a Firefox port.</p>
     <form class="notify" id="notify" data-endpoint="https://api.convertkit.com/v3/forms/10117772/subscribe" data-key="7rAfBc1tD4x1vt6mBYGe2A" novalidate>
       <label for="email" class="eyebrow" style="flex-basis:100%;margin:0">Get one email when it ships</label>
       <input type="email" id="email" name="email" placeholder="you@example.com" required autocomplete="email">
