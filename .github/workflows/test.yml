@@ -1,0 +1,36 @@
+name: test
+
+on:
+  push:
+    branches: [main, windows-support]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [18, 22]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm test
+
+  # The only check on a real Windows machine: setup, the Run-key relay, every hook through Git Bash, PowerShell and
+  # cmd, then uninstall. See scripts/windows-smoke.js.
+  windows-smoke:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/windows-smoke.js
+      - if: always()
+        shell: pwsh
+        run: Get-ChildItem -Path $env:TEMP -Filter 'relay.*' -Recurse -ErrorAction SilentlyContinue | ForEach-Object { "== $($_.FullName)"; Get-Content $_.FullName -Tail 40 }
