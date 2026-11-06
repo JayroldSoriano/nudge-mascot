@@ -3,7 +3,7 @@ title: "Claude Code hooks, explained by a pixel mascot that gets annoyed when yo
 published: false
 description: "A worked example of Claude Code hooks: a shell hook, a local relay, and an approval hook that answers permission prompts from the browser."
 tags: claudecode, ai, javascript, productivity
-cover_image: https://nudge-mascot.vercel.app/assets/og.png
+cover_image: https://nudgemascot.com/assets/og.png
 ---
 
 You give Claude Code a task, switch to the browser "just for a second", and ten minutes later you find it has been sitting on a permission prompt the whole time. I lost enough afternoons that way that I built [Nudge](https://github.com/JayroldSoriano/nudge-mascot): a pixel mascot that waves at you on your active Chrome tab when Claude has a question, needs permission, or is done. Leave it waiting and it gets harder to ignore. It walks to the middle of the screen, grows, taps its foot and eventually sounds an alarm.

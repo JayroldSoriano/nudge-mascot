@@ -7,13 +7,13 @@
   Ignore it and it gets annoyed. Free, open source, local only.
 </p>
 <p align="center">
-  <a href="https://nudge-mascot.vercel.app/">Website</a> ·
+  <a href="https://nudgemascot.com/">Website</a> ·
   <a href="#install">Install</a> ·
   <a href="#escalation">Escalation</a> ·
   <a href="#reply-from-the-bubble">Reply</a> ·
   <a href="#jump-back">Jump back</a> ·
   <a href="#waiting-stats">Stats</a> ·
-  <a href="https://nudge-mascot.vercel.app/privacy">Privacy</a> ·
+  <a href="https://nudgemascot.com/privacy">Privacy</a> ·
   <a href="https://github.com/sponsors/JayroldSoriano">Sponsor</a>
 </p>
 
@@ -229,7 +229,7 @@ re-run `setup` to change it. Requests from web pages (`http(s)://` origins) are 
 content script renders inside a closed shadow root and never reads the page. Messages are clipped to 1200 characters before leaving the relay. Waiting stats and the terminal
 each session runs in stay on your machine (the stats in `~/.claude-nudge/stats.jsonl`, the terminal in the
 relay's memory). No accounts, no analytics.
-Full policy: [privacy.html](https://nudge-mascot.vercel.app/privacy).
+Full policy: [privacy.html](https://nudgemascot.com/privacy).
 
 ## Project layout
 

@@ -327,7 +327,7 @@ async function renderShareImage(st) {
   g.fillStyle = MUTED;
   g.font = `500 20px ${MONO}`;
   g.textAlign = 'right';
-  g.fillText('nudge-mascot.vercel.app', 1110, 560);
+  g.fillText('nudgemascot.com', 1110, 560);
   g.textAlign = 'left';
   return new Promise((resolve) => c.toBlob(resolve, 'image/png'));
 }
