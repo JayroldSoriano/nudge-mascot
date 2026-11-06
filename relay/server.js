@@ -106,7 +106,10 @@ function testEvents(kind, phoneDelay, terminal, agent = DEFAULT_AGENT) {
   const remember = (sid, fallback) => {
     const key = sessionKey(agent, sid);
     if (terminal) focus.remember(key, terminal);
-    else if (fallback && !focus.get(key)) focus.remember(key, process.platform === 'darwin' ? { terminal: 'Apple_Terminal', terminal_session: '', terminal_bundle: '', tmux: '', tmux_pane: '', terminal_window: '' } : { terminal: 'gnome-terminal', terminal_session: '', terminal_bundle: '', tmux: '', tmux_pane: '', terminal_window: '' });
+    else if (fallback && !focus.get(key)) {
+      const app = { darwin: 'Apple_Terminal', win32: 'WindowsTerminal' }[process.platform] || 'gnome-terminal';
+      focus.remember(key, { terminal: app, terminal_session: '', terminal_bundle: '', tmux: '', tmux_pane: '', terminal_window: '' });
+    }
   };
   if (kind === 'multi') {
     // Three projects blocked at once, waiting 7 min, 3 min and 40 s: previews the session switcher.

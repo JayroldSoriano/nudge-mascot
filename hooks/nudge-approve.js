@@ -62,8 +62,8 @@ function answersFor(questions, d) {
   if (!hook.tool_use_id) hook.tool_use_id = 'pr-' + require('crypto').randomUUID();
   // The terminal this session runs in (same fields nudge-hook.sh sends as headers), for "Jump to terminal".
   const env = process.env;
-  hook.terminal = env.TERM_PROGRAM || '';
-  hook.terminal_session = env.ITERM_SESSION_ID || env.TERM_SESSION_ID || '';
+  hook.terminal = env.TERM_PROGRAM || (env.WT_SESSION ? 'WindowsTerminal' : ''); // Windows Terminal sets only WT_SESSION
+  hook.terminal_session = env.ITERM_SESSION_ID || env.TERM_SESSION_ID || env.WT_SESSION || '';
   hook.terminal_bundle = env.__CFBundleIdentifier || '';
   hook.tmux = env.TMUX || '';
   hook.tmux_pane = env.TMUX_PANE || '';

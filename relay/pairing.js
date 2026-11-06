@@ -6,6 +6,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { hookCommand } = require('./hookcmd');
 
 const HOME = os.homedir();
 const INSTALL_DIR = path.join(HOME, '.claude-nudge');
@@ -53,7 +54,7 @@ function installApprovalHooks({ backup = true } = {}) {
   const bak = SETTINGS + '.bak-claude-nudge';
   if (backup && fs.existsSync(SETTINGS) && !fs.existsSync(bak)) fs.copyFileSync(SETTINGS, bak);
   settings.hooks = settings.hooks || {};
-  const command = `"${process.execPath}" "${APPROVE}"`;
+  const command = hookCommand(APPROVE);
   const entry = { type: 'command', command, timeout: 600 };
   let added = 0;
   for (const [event, matcher] of [['PermissionRequest', null], ['PreToolUse', 'AskUserQuestion']]) {

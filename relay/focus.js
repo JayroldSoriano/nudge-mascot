@@ -7,6 +7,8 @@
 // tmux's socket and pane, and X11's WINDOWID. The relay keeps the latest per agent and session; POST /focus uses it.
 //   macOS: osascript `tell application … to activate` (iTerm2 also selects the session), falling back to `open`.
 //   Linux: wmctrl or xdotool, by window id when the terminal exported one, else by window class.
+//   Windows: PowerShell's WScript.Shell AppActivate on the newest window of the terminal's process. Windows may only
+//     flash its taskbar button instead: a background process can't always take the foreground.
 const { execFile } = require('child_process');
 const fs = require('fs');
 
@@ -30,6 +32,17 @@ Object.assign(BUNDLE_NAMES, {
   'org.alacritty': 'Alacritty', 'com.jetbrains.intellij': 'IntelliJ IDEA', 'com.jetbrains.WebStorm': 'WebStorm',
   'com.jetbrains.pycharm': 'PyCharm', 'dev.warp.Warp-Preview': 'Warp', 'com.mitchellh.ghostty.debug': 'Ghostty',
 });
+// TERM_PROGRAM (or WindowsTerminal, which the hooks send when only WT_SESSION is set) -> the Windows process names to
+// try, in order. VS Code, Cursor and Windsurf all say "vscode". Fixed names only: they go into a PowerShell command.
+const WIN_APPS = {
+  WindowsTerminal: { name: 'Windows Terminal', procs: ['WindowsTerminal'] },
+  vscode: { name: 'Visual Studio Code', procs: ['Code', 'Cursor', 'Windsurf', 'Code - Insiders', 'VSCodium'] },
+  cursor: { name: 'Cursor', procs: ['Cursor'] },
+  mintty: { name: 'Git Bash', procs: ['mintty'] },
+  WezTerm: { name: 'WezTerm', procs: ['wezterm-gui'] },
+  Hyper: { name: 'Hyper', procs: ['Hyper'] },
+  Tabby: { name: 'Tabby', procs: ['Tabby'] },
+};
 const MULTIPLEXERS = new Set(['tmux', 'screen']); // TERM_PROGRAM inside them names no app
 
 const BUNDLE_RE = /^[A-Za-z0-9][A-Za-z0-9.-]{0,127}$/;
@@ -76,6 +89,7 @@ function label(sessionId) {
   if (BUNDLE_NAMES[t.terminal_bundle]) return BUNDLE_NAMES[t.terminal_bundle];
   if (t.terminal_bundle && BUNDLE_RE.test(t.terminal_bundle) && !MAC_APPS[t.terminal]) return t.terminal_bundle.split('.').pop();
   if (MAC_APPS[t.terminal]) return MAC_APPS[t.terminal].name;
+  if (WIN_APPS[t.terminal]) return WIN_APPS[t.terminal].name;
   return MULTIPLEXERS.has(t.terminal) ? '' : t.terminal;
 }
 
@@ -140,12 +154,24 @@ function plan(t, platform = process.platform) {
       : [{ cmd: 'wmctrl', args: ['-x', '-a', cls] }, { cmd: 'xdotool', args: ['search', '--limit', '1', '--class', cls, 'windowactivate'] }] });
     return { steps, app: cls || 'terminal window' };
   }
+  if (platform === 'win32') {
+    const known = WIN_APPS[t.terminal];
+    if (!known) return null;
+    const names = known.procs.map((n) => `'${n}'`).join(',');
+    // One line: a newline inside a -Command argument is not safe across PowerShell versions.
+    const script = `foreach ($n in @(${names})) { `
+      + '$p = Get-Process -Name $n -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Sort-Object StartTime -Descending | Select-Object -First 1; '
+      + 'if ($p -and (New-Object -ComObject WScript.Shell).AppActivate($p.Id)) { exit 0 } }; '
+      + "[Console]::Error.WriteLine('no open window'); exit 1";
+    steps.push({ alternatives: [{ cmd: 'powershell', args: ['-NoProfile', '-NonInteractive', '-Command', script] }] });
+    return { steps, app: known.name };
+  }
   return { unsupported: true };
 }
 
 function run(step) {
   return new Promise((resolve) => {
-    execFile(step.cmd, step.args, { timeout: 5000 }, (err, stdout, stderr) => {
+    execFile(step.cmd, step.args, { timeout: 5000, windowsHide: true }, (err, stdout, stderr) => {
       resolve(err ? { ok: false, missing: err.code === 'ENOENT', error: String(stderr || err.message).trim().split('\n')[0] } : { ok: true, out: String(stdout).trim() });
     });
   });
@@ -182,4 +208,4 @@ async function focus(sessionId, { dryRun = !!process.env.CLAUDE_NUDGE_FOCUS_DRY_
   return { status: 200, body: { ok: true, app: p.app, selected } };
 }
 
-module.exports = { fromHook, remember, get, forget, label, plan, focus, MAC_APPS };
+module.exports = { fromHook, remember, get, forget, label, plan, focus, MAC_APPS, WIN_APPS };

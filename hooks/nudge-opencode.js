@@ -1,7 +1,7 @@
 // Nudge plugin for OpenCode (V2). Installed by `npx nudge-mascot setup --agent opencode` as
 // ~/.config/opencode/plugins/nudge.js. OpenCode has no shell-command hooks, so this subscribes to its event bus and
-// pipes one small JSON payload per relevant event into `nudge-hook.sh opencode`, the same hook every other agent
-// runs (it adds the terminal headers and the secret, and never blocks). relay/adapters/opencode.js maps the payload:
+// pipes one small JSON payload per relevant event into `nudge-hook.sh opencode` (`node nudge-hook.js opencode` on
+// Windows), the same hook every other agent runs (it adds the terminal headers and the secret, and never blocks). relay/adapters/opencode.js maps the payload:
 //   { hook_event_name: <event type>, session_id, cwd, data: <event.data>, last_assistant_message? }
 // Never throws: a missing hook or relay only means no nudge.
 import { spawn } from 'node:child_process';
@@ -9,7 +9,7 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-const HOOK = /* nudge:hook */ join(homedir(), '.claude-nudge', 'nudge-hook.sh');
+const HOOK = /* nudge:hook */ join(homedir(), '.claude-nudge', process.platform === 'win32' ? 'nudge-hook.js' : 'nudge-hook.sh');
 const FORWARD = new Set([
   'permission.asked', 'permission.replied',
   'form.created', 'form.replied', 'form.cancelled',
@@ -20,7 +20,8 @@ const FORWARD = new Set([
 function send(payload) {
   if (!existsSync(HOOK)) return;
   try {
-    const child = spawn(HOOK, ['opencode'], { stdio: ['pipe', 'ignore', 'ignore'] });
+    const js = HOOK.endsWith('.js'); // Windows can't run the .sh, so the Node port runs through node
+    const child = spawn(js ? 'node' : HOOK, js ? [HOOK, 'opencode'] : ['opencode'], { stdio: ['pipe', 'ignore', 'ignore'], windowsHide: true });
     child.on('error', () => {});
     child.stdin.on('error', () => {});
     child.stdin.end(JSON.stringify(payload));
