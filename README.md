@@ -35,7 +35,7 @@ npx nudge-mascot setup
 That copies the relay and hooks into `~/.claude-nudge/`, adds the hooks to `~/.claude/settings.json`
 (backup saved next to it; Codex, Gemini CLI, Grok Build, Cursor and OpenCode too when found, see [Other agents](#other-agents)), including
 the two approval hooks that let you [reply from the bubble](#reply-from-the-bubble), starts the relay and keeps
-it running at login (launchd on macOS, systemd user service on Linux), and prints where to load the extension
+it running at login (launchd on macOS, systemd user service on Linux, the Run key on [Windows](#windows)), and prints where to load the extension
 and a **connection code** (see [Privacy](#privacy)). Running it again is safe: hooks already present are left
 alone, the backup keeps your settings from before the first run, and the code stays the same.
 
@@ -53,7 +53,24 @@ npx nudge-mascot status          # relay health, hook check (approval hooks incl
 npx nudge-mascot uninstall       # removes everything it installed, approval hooks and stats included
 ```
 
-Requires Node 18+ and Chrome 116+.
+Requires Node 18+ and Chrome 116+, on macOS, Linux or Windows 10/11.
+
+### Windows
+
+`setup` works the same from PowerShell, cmd or Git Bash, with three differences:
+
+- The hooks run `node "C:/Users/you/.claude-nudge/nudge-hook.js"` instead of the shell script, so `node` has to be
+  on your PATH (it is if `npx` works). That one form runs in every shell the agents use on Windows: Git Bash or
+  PowerShell for Claude Code, PowerShell for Cursor.
+- The relay starts at login from `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` (value `NudgeRelay`,
+  a hidden `wscript` launcher; no admin rights). Unlike launchd and systemd it isn't restarted after a crash:
+  `npx nudge-mascot status` says when it's down, and running `setup` again starts it.
+- **Jump to terminal** brings Windows Terminal, VS Code (or Cursor, Windsurf), Git Bash, WezTerm, Hyper or Tabby
+  forward through PowerShell. Windows sometimes only flashes the taskbar button instead: a background process
+  can't always take the foreground.
+
+WSL isn't supported yet: install inside WSL and Chrome on Windows can only reach the relay with WSL's mirrored
+networking, which hasn't been tested.
 
 ## Other agents
 
@@ -189,6 +206,8 @@ latest per session in memory.
   Automation); activating still works without it.
 - **Linux**: `wmctrl` or `xdotool`, by window id when the terminal exports `WINDOWID`, else by window class.
   Without either tool the bubble says to install one.
+- **Windows**: PowerShell's `AppActivate` on the newest window of the terminal's process (Windows Terminal is
+  recognised by `WT_SESSION`, the others by `TERM_PROGRAM`). Windows may flash the taskbar button instead.
 - A session whose terminal Nudge can't tell (started before you updated, or in a bare tmux with no app
   around it) gets a message in the bubble instead.
 
