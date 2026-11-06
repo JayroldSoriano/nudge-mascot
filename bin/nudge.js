@@ -23,14 +23,21 @@ const HOME = os.homedir();
 const INSTALL_DIR = path.join(HOME, '.claude-nudge');
 const SETTINGS = path.join(HOME, '.claude', 'settings.json');
 const PORT = Number(process.env.CLAUDE_NUDGE_PORT || 47831);
-const HOOK = path.join(INSTALL_DIR, 'nudge-hook.sh');
+const WIN = process.platform === 'win32';
+// Windows has no sh or curl for nudge-hook.sh, so it runs the Node port, nudge-hook.js.
+const HOOK = path.join(INSTALL_DIR, WIN ? 'nudge-hook.js' : 'nudge-hook.sh');
 const RELAY = path.join(INSTALL_DIR, 'relay', 'server.js');
 const LAUNCHD_LABEL = 'com.claude-nudge.relay';
 const PLIST = path.join(HOME, 'Library', 'LaunchAgents', `${LAUNCHD_LABEL}.plist`);
 const SYSTEMD_UNIT = path.join(HOME, '.config', 'systemd', 'user', 'claude-nudge.service');
+// Windows: a hidden launcher started at login from the user's Run key (no admin rights, no console window).
+const RUN_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
+const RUN_VALUE = 'NudgeRelay';
+const VBS = path.join(INSTALL_DIR, 'relay.vbs');
 const STORE_URL = 'https://chromewebstore.google.com/detail/nudge/hjonkcnipffdjhcacgfoppaagkchdgid';
 const pairing = require('../relay/pairing'); // phone pairing: cloud.json + the approval hooks
 const secret = require('../relay/secret'); // the per-install secret the relay wants from every client
+const { hookCommand } = require('../relay/hookcmd'); // how a hook command is written on this platform
 const APPROVE = pairing.APPROVE;
 
 const HOOKS = {
@@ -42,9 +49,9 @@ const HOOKS = {
 };
 const BACKUP_SUFFIX = '.bak-claude-nudge';
 
-// The agents Nudge can hook into. All run the same nudge-hook.sh; the others pass their name so the relay picks
+// The agents Nudge can hook into. All run the same nudge-hook.sh (nudge-hook.js on Windows); the others pass their name so the relay picks
 // their adapter (relay/adapters/). `hooks` is event -> matcher (null: every occurrence). `re` recognises our own
-// entries, including stale ones from an older install path. `marker` (or `dir`) and `bin` (one name or several)
+// entries, including stale ones from an older install path or the other hook script. `marker` (or `dir`) and `bin` (one name or several)
 // decide detection. Config layouts:
 //   default  { hooks: { Event: [{ matcher?, hooks: [{ type, command, ... }] }] } }  (Claude Code, Codex, Gemini, Grok)
 //   flat     { version: 1, hooks: { event: [{ command, ... }] } }                    (Cursor)
@@ -59,10 +66,10 @@ const AGENTS = {
     hooks: HOOKS,
     // Quoted, so a HOME with spaces works. Earlier versions installed it unquoted; `re` matches both, so `setup`
     // replaces the old entry with this one.
-    command: `"${HOOK}"`,
+    command: hookCommand(HOOK),
     entry: {},
-    re: /nudge-hook\.sh"?$/,
-    removeRe: /nudge-(hook\.sh|approve\.js)"?$/, // the approval hook's command ends in a quote
+    re: /nudge-hook\.(sh|js)"?$/,
+    removeRe: /nudge-(hook\.(sh|js)|approve\.js)"?$/, // the approval hook's command ends in a quote
   },
   // ~/.codex/hooks.json, per the Codex hooks docs. Codex asks the user to review and trust new hooks (/hooks).
   codex: {
@@ -71,9 +78,9 @@ const AGENTS = {
     dir: path.join(HOME, '.codex'),
     bin: 'codex',
     hooks: { PermissionRequest: null, PreToolUse: 'request_user_input', PostToolUse: null, UserPromptSubmit: null, Stop: null },
-    command: `"${HOOK}" codex`,
+    command: hookCommand(HOOK, ['codex']),
     entry: { timeout: 10 }, // seconds
-    re: /nudge-hook\.sh"?\s+codex$/,
+    re: /nudge-hook\.(sh|js)"?\s+codex$/,
     note: 'Codex runs new hooks only after you trust them: type /hooks in Codex and trust the Nudge entries.',
   },
   // ~/.gemini/settings.json, per the Gemini CLI hooks docs. ~/.gemini alone is not enough to detect Gemini CLI:
@@ -84,9 +91,9 @@ const AGENTS = {
     marker: path.join(HOME, '.gemini', 'settings.json'),
     bin: 'gemini',
     hooks: { Notification: null, AfterAgent: null, BeforeAgent: null, AfterTool: null },
-    command: `"${HOOK}" gemini`,
+    command: hookCommand(HOOK, ['gemini']),
     entry: { name: 'nudge', timeout: 5000 }, // milliseconds
-    re: /nudge-hook\.sh"?\s+gemini$/,
+    re: /nudge-hook\.(sh|js)"?\s+gemini$/,
   },
   // ~/.grok/hooks/*.json, per the Grok Build hooks guide; user hook files are always trusted. Grok also runs the
   // Claude Code hooks in ~/.claude/settings.json, and the relay drops those copies. ~/.grok alone is not enough to
@@ -105,10 +112,10 @@ const AGENTS = {
       StopFailure: null,
       StopCancelled: null,
     },
-    command: `"${HOOK}" grok`,
+    command: hookCommand(HOOK, ['grok']),
     entry: { timeout: 10 }, // seconds
     ownFile: true,
-    re: /nudge-hook\.sh"?\s+grok$/,
+    re: /nudge-hook\.(sh|js)"?\s+grok$/,
   },
   // ~/.cursor/hooks.json (version 1, flat entries), read by the editor's agent and the cursor-agent CLI. Cursor has no
   // event for its approval prompts, so it gets done nudges only.
@@ -118,10 +125,10 @@ const AGENTS = {
     dir: path.join(HOME, '.cursor'),
     bin: ['cursor-agent', 'cursor'],
     hooks: { stop: null, afterAgentResponse: null, beforeSubmitPrompt: null },
-    command: `"${HOOK}" cursor`,
+    command: hookCommand(HOOK, ['cursor']),
     entry: { timeout: 10 }, // seconds
     flat: true,
-    re: /nudge-hook\.sh"?\s+cursor$/,
+    re: /nudge-hook\.(sh|js)"?\s+cursor$/,
   },
   // OpenCode (V2) has no shell hooks: a plugin in its global plugins directory forwards bus events to nudge-hook.sh.
   opencode: {
@@ -159,8 +166,11 @@ function readJson(file) {
   } catch (e) { return { error: `${file} is not plain JSON (${e.message}); add the hooks by hand or fix the file` }; }
 }
 
-function onPath(bin) {
-  return (process.env.PATH || '').split(path.delimiter).some((d) => d && fs.existsSync(path.join(d, bin)));
+// On Windows a command is found with one of PATHEXT's extensions: claude.exe, codex.cmd (npm's shim), gemini.ps1.
+function onPath(bin, platform = process.platform) {
+  // Lower case: Windows matches names in any case, and npm's shims are written codex.cmd, codex.ps1.
+  const exts = platform === 'win32' ? ['', ...(process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD').toLowerCase().split(';').filter(Boolean)] : [''];
+  return (process.env.PATH || '').split(path.delimiter).some((d) => d && exts.some((x) => fs.existsSync(path.join(d, bin + x))));
 }
 
 function detected(id) {
@@ -331,13 +341,50 @@ WantedBy=default.target
       return 'systemd user service';
     } catch (_) { /* fall through */ }
   }
+  if (WIN) {
+    stopWindowsRelay(); // a re-run replaces the relay that is running (the old code), as launchctl unload/load does
+    // wscript runs the launcher with no window; the launcher runs node through cmd only to send its output to the logs.
+    // Saved as UTF-16 with a BOM so a user name outside ASCII survives (wscript reads ANSI otherwise).
+    const logs = path.join(INSTALL_DIR, 'logs');
+    const line = `cmd /c ""${node}" "${RELAY}" >> "${path.join(logs, 'relay.log')}" 2>> "${path.join(logs, 'relay.err')}""`;
+    const vbs = [
+      "' Nudge relay launcher, written by `npx nudge-mascot setup`; started at login from the Run key " + RUN_VALUE + '.',
+      'Set sh = CreateObject("WScript.Shell")',
+      `sh.Environment("PROCESS")("CLAUDE_NUDGE_PORT") = "${PORT}"`,
+      `sh.Run "${line.replace(/"/g, '""')}", 0, False`,
+      '',
+    ].join('\r\n');
+    fs.writeFileSync(VBS, Buffer.from('\ufeff' + vbs, 'utf16le'));
+    execFileSync('reg', ['add', RUN_KEY, '/v', RUN_VALUE, '/t', 'REG_SZ', '/d', `wscript.exe "${VBS}"`, '/f'], { stdio: 'ignore' });
+    spawn('wscript.exe', [VBS], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+    return 'login item (Run key)';
+  }
   // Fallback: detached background process for this session only.
   const child = spawn(node, [RELAY], { detached: true, stdio: 'ignore', env: { ...process.env, CLAUDE_NUDGE_PORT: String(PORT) } });
   child.unref();
   return 'background process (re-run `npx nudge-mascot start` after a reboot)';
 }
 
+// Windows: stops the node process listening on our port, if that is what it is (never another program on the port).
+function stopWindowsRelay() {
+  try {
+    const listening = execFileSync('netstat', ['-ano', '-p', 'TCP'], { encoding: 'utf8', windowsHide: true })
+      .split(/\r?\n/).map((l) => l.trim().split(/\s+/))
+      .filter((c) => c[0] === 'TCP' && c[1] === `127.0.0.1:${PORT}` && c[3] === 'LISTENING').map((c) => c[4]);
+    for (const pid of new Set(listening)) {
+      if (!/^\d+$/.test(pid)) continue;
+      const task = execFileSync('tasklist', ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'], { encoding: 'utf8', windowsHide: true });
+      if (/^"node(\.exe)?"/i.test(task.trim())) execFileSync('taskkill', ['/PID', pid, '/F'], { stdio: 'ignore', windowsHide: true });
+    }
+  } catch (_) { /* nothing running, or not ours to stop */ }
+}
+
 function removeService() {
+  if (WIN) {
+    try { execFileSync('reg', ['delete', RUN_KEY, '/v', RUN_VALUE, '/f'], { stdio: 'ignore', windowsHide: true }); } catch (_) {}
+    stopWindowsRelay();
+    if (fs.existsSync(VBS)) fs.unlinkSync(VBS);
+  }
   if (process.platform === 'darwin' && fs.existsSync(PLIST)) {
     try { execFileSync('launchctl', ['unload', PLIST], { stdio: 'ignore' }); } catch (_) {}
     fs.unlinkSync(PLIST);
@@ -380,8 +427,10 @@ async function setup() {
   fs.mkdirSync(INSTALL_DIR, { recursive: true });
   copyDir(path.join(PKG, 'relay'), path.join(INSTALL_DIR, 'relay'));
   copyDir(path.join(PKG, 'extension'), path.join(INSTALL_DIR, 'extension'));
-  fs.copyFileSync(path.join(PKG, 'hooks', 'nudge-hook.sh'), HOOK);
-  fs.chmodSync(HOOK, 0o755);
+  // Both hook scripts, so a home folder shared with WSL or another OS still has the one it runs.
+  fs.copyFileSync(path.join(PKG, 'hooks', 'nudge-hook.sh'), path.join(INSTALL_DIR, 'nudge-hook.sh'));
+  fs.chmodSync(path.join(INSTALL_DIR, 'nudge-hook.sh'), 0o755);
+  fs.copyFileSync(path.join(PKG, 'hooks', 'nudge-hook.js'), path.join(INSTALL_DIR, 'nudge-hook.js'));
   fs.copyFileSync(path.join(PKG, 'hooks', 'nudge-approve.js'), APPROVE);
   ok(`files installed in ${INSTALL_DIR}`);
   // Before the relay (re)starts, so it reads the secret at start. Kept across re-runs: the extension has it stored.
@@ -422,7 +471,7 @@ async function setup() {
 async function status() {
   const h = await health();
   if (h) ok(`relay up on 127.0.0.1:${h.port}, ${h.clients} extension connection(s), ${h.events} recent event(s)`);
-  else warn(`relay not reachable on 127.0.0.1:${PORT}`);
+  else warn(`relay not reachable on 127.0.0.1:${PORT}${WIN ? '; run npx nudge-mascot setup to start it again (it restarts at login, not after a crash)' : ''}`);
   for (const id of Object.keys(AGENTS)) {
     const a = AGENTS[id];
     const s = hookStatus(id);
@@ -502,7 +551,8 @@ function uninstall() {
     else if (id === 'claude-code') ok('hooks removed from settings.json');
   }
   removeService(); ok('relay service removed');
-  fs.rmSync(INSTALL_DIR, { recursive: true, force: true }); ok(`${INSTALL_DIR} deleted`);
+  // Retries: on Windows the relay's log files stay locked for a moment after it is stopped.
+  fs.rmSync(INSTALL_DIR, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); ok(`${INSTALL_DIR} deleted`);
   log('Remove the extension from chrome://extensions to finish.');
 }
 
@@ -513,7 +563,7 @@ function start() {
 
 // Required (by scripts/install-test.js) rather than run: export the hook installers, run nothing.
 if (require.main !== module) {
-  module.exports = { AGENTS, ALIASES, HOOK, installHooks, removeHooks, hookStatus, detected, pluginSource };
+  module.exports = { AGENTS, ALIASES, HOOK, installHooks, removeHooks, hookStatus, detected, onPath, pluginSource };
   return;
 }
 

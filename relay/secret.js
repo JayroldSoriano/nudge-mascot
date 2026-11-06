@@ -2,9 +2,10 @@
 // The per-install secret that proves a request comes from this user's hooks, CLI or extension, not from any other
 // process or user on the machine (127.0.0.1 is reachable by all of them). Zero dependencies.
 //
-// ~/.claude-nudge/secret, 32 random bytes as hex, mode 0600. `setup` mints it (and the relay does at start when it is
-// missing, so a checkout run with `npm start` works too). Sent as the X-Nudge-Secret header (hooks, CLI, extension
-// fetches) or ?secret= (the extension's WebSocket). The extension stores it after the user pastes it into the popup.
+// ~/.claude-nudge/secret, 32 random bytes as hex, mode 0600 (Windows ignores the mode; the file stays private there
+// because %USERPROFILE% is readable only by its user, administrators and SYSTEM). `setup` mints it (and the relay does
+// at start when it is missing, so a checkout run with `npm start` works too). Sent as the X-Nudge-Secret header
+// (hooks, CLI, extension fetches) or ?secret= (the extension's WebSocket). The extension stores it after the user pastes it into the popup.
 const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');

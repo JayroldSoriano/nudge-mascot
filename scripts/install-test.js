@@ -10,10 +10,14 @@ const path = require('path');
 
 const HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'nudge-install-test-'));
 process.env.HOME = HOME; // before bin/nudge.js computes its paths
+process.env.USERPROFILE = HOME; // os.homedir() reads this one on Windows
 delete process.env.XDG_CONFIG_HOME;
 const nudge = require('../bin/nudge.js');
 const { adapters, createContext } = require('../relay/adapters');
 const { AGENTS, installHooks, removeHooks, hookStatus } = nudge;
+const { hookCommand } = require('../relay/hookcmd');
+const focus = require('../relay/focus');
+const WIN = process.platform === 'win32';
 
 let passed = 0;
 const failures = [];
@@ -111,12 +115,74 @@ const write = (f, data) => { fs.mkdirSync(path.dirname(f), { recursive: true });
     } finally { process.env.PATH = saved; }
   });
 
+  console.log('windows (any OS: the platform is passed in)');
+  await test('macOS/Linux hook commands are byte-identical to the ones earlier versions wrote', () => {
+    assert.strictEqual(hookCommand('/Users/me/.claude-nudge/nudge-hook.sh', [], 'darwin'), '"/Users/me/.claude-nudge/nudge-hook.sh"');
+    assert.strictEqual(hookCommand('/home/me/.claude-nudge/nudge-hook.sh', ['codex'], 'linux'), '"/home/me/.claude-nudge/nudge-hook.sh" codex');
+    assert.strictEqual(hookCommand('/home/me/.claude-nudge/nudge-approve.js', [], 'linux'), `"${process.execPath}" "/home/me/.claude-nudge/nudge-approve.js"`);
+    if (WIN) return;
+    assert.strictEqual(AGENTS['claude-code'].command, `"${nudge.HOOK}"`);
+    for (const id of ['codex', 'gemini', 'grok', 'cursor']) assert.strictEqual(AGENTS[id].command, `"${nudge.HOOK}" ${id}`);
+  });
+
+  await test('windows hook commands: bare node, forward slashes, quoted path (Git Bash, PowerShell and cmd alike)', () => {
+    assert.strictEqual(hookCommand('C:\\Users\\Jo Ann\\.claude-nudge\\nudge-hook.js', ['codex'], 'win32'), 'node "C:/Users/Jo Ann/.claude-nudge/nudge-hook.js" codex');
+    assert.strictEqual(hookCommand('C:\\Users\\me\\.claude-nudge\\nudge-approve.js', [], 'win32'), 'node "C:/Users/me/.claude-nudge/nudge-approve.js"');
+    if (WIN) assert.ok(AGENTS.codex.command.startsWith('node "') && AGENTS.codex.command.endsWith('nudge-hook.js" codex'));
+  });
+
+  await test('our entries are recognised in both forms, so setup replaces and uninstall removes either', () => {
+    const forms = (args) => [
+      hookCommand('/Users/me/.claude-nudge/nudge-hook.sh', args, 'darwin'),
+      `/Users/me/.claude-nudge/nudge-hook.sh${args.length ? ' ' + args.join(' ') : ''}`, // unquoted, as early versions wrote it
+      hookCommand('C:\\Users\\me\\.claude-nudge\\nudge-hook.js', args, 'win32'),
+    ];
+    for (const c of forms([])) assert.ok(AGENTS['claude-code'].re.test(c), c);
+    for (const id of ['codex', 'gemini', 'grok', 'cursor']) {
+      for (const c of forms([id])) assert.ok(AGENTS[id].re.test(c), `${id}: ${c}`);
+      for (const c of forms([])) assert.ok(!AGENTS[id].re.test(c), `${id} must not claim Claude Code's ${c}`);
+    }
+    assert.ok(!AGENTS['claude-code'].re.test(forms(['codex'])[2]));
+    assert.ok(AGENTS['claude-code'].removeRe.test(hookCommand('C:\\Users\\me\\.claude-nudge\\nudge-approve.js', [], 'win32')));
+  });
+
+  await test('detection on Windows finds codex.cmd and claude.exe through PATHEXT', () => {
+    const bin = path.join(HOME, 'winbin');
+    write(path.join(bin, 'codex.cmd'), '');
+    write(path.join(bin, 'claude.exe'), '');
+    const saved = [process.env.PATH, process.env.PATHEXT];
+    process.env.PATH = bin;
+    process.env.PATHEXT = '.COM;.EXE;.BAT;.CMD';
+    try {
+      assert.strictEqual(nudge.onPath('codex', 'win32'), true);
+      assert.strictEqual(nudge.onPath('claude', 'win32'), true);
+      assert.strictEqual(nudge.onPath('gemini', 'win32'), false);
+      assert.strictEqual(nudge.onPath('codex', 'linux'), false);
+    } finally { [process.env.PATH, process.env.PATHEXT] = saved; if (saved[1] === undefined) delete process.env.PATHEXT; }
+  });
+
+  await test('Jump to terminal on Windows: PowerShell AppActivate over a fixed list of process names', () => {
+    const t = (terminal) => ({ terminal, terminal_session: '', terminal_bundle: '', tmux: '', tmux_pane: '', terminal_window: '' });
+    const wt = focus.plan(t('WindowsTerminal'), 'win32');
+    assert.strictEqual(wt.app, 'Windows Terminal');
+    const [step] = wt.steps[0].alternatives;
+    assert.strictEqual(step.cmd, 'powershell');
+    assert.deepStrictEqual(step.args.slice(0, 3), ['-NoProfile', '-NonInteractive', '-Command']);
+    assert.ok(step.args[3].startsWith("foreach ($n in @('WindowsTerminal'))"));
+    assert.ok(!step.args[3].includes('\n'));
+    assert.ok(focus.plan(t('vscode'), 'win32').steps[0].alternatives[0].args[3].includes("'Code','Cursor'"));
+    assert.strictEqual(focus.plan(t("x'); Remove-Item C:\\ #"), 'win32'), null, 'an unknown hint never reaches PowerShell');
+    assert.strictEqual(focus.plan(t(''), 'win32'), null);
+  });
+
   console.log('opencode plugin (fake event bus, stand-in nudge-hook.sh)');
   await test('the plugin forwards the events the adapter maps, with the last reply on "done"', async () => {
     const out = path.join(HOME, 'posted');
     fs.mkdirSync(out);
-    // Stand-in for ~/.claude-nudge/nudge-hook.sh: records its argument and stdin, one file per run (they run at once).
-    write(nudge.HOOK, `#!/bin/sh\n{ printf '%s\\t' "$1"; cat; } > "${out}/$$.tmp" && mv "${out}/$$.tmp" "${out}/$$.json"\n`);
+    // Stand-in for ~/.claude-nudge/nudge-hook.sh (.js on Windows): records its argument and stdin, one file per run
+    // (they run at once).
+    if (WIN) write(nudge.HOOK, `const fs = require('fs'); let b = ''; process.stdin.on('data', (c) => (b += c)).on('end', () => { const f = ${JSON.stringify(out)} + '/' + process.pid; fs.writeFileSync(f + '.tmp', process.argv[2] + '\\t' + b); fs.renameSync(f + '.tmp', f + '.json'); });\n`);
+    else write(nudge.HOOK, `#!/bin/sh\n{ printf '%s\\t' "$1"; cat; } > "${out}/$$.tmp" && mv "${out}/$$.tmp" "${out}/$$.json"\n`);
     fs.chmodSync(nudge.HOOK, 0o755);
     installHooks('opencode');
     const mjs = AGENTS.opencode.file.replace(/\.js$/, '.mjs'); // load it as ESM under Node, as Bun would
